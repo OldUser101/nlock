@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+pub mod buffer;
 pub mod state;
 pub mod surface;
+pub mod util;
 
 use crate::state::NLockState;
 
@@ -14,13 +16,12 @@ fn start() -> Result<()> {
     let conn = Connection::connect_to_env()?;
     let display = conn.display();
 
-    let mut state = NLockState::new();
+    let mut state = NLockState::new(display);
 
     let mut event_queue = conn.new_event_queue();
     let qh = event_queue.handle();
 
-    let _ = display.get_registry(&qh, ());
-
+    state.get_registry(&qh);
     event_queue.roundtrip(&mut state)?;
 
     if state.compositor.is_none() {
@@ -39,9 +40,14 @@ fn start() -> Result<()> {
         bail!("Missing ExtSessionLockManagerV1");
     }
 
+    state.lock(&qh);
+
     while state.running {
         event_queue.blocking_dispatch(&mut state)?;
     }
+
+    state.unlock(&qh);
+    event_queue.roundtrip(&mut state)?;
 
     Ok(())
 }

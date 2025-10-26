@@ -1,39 +1,80 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use wayland_client::{
-    delegate_noop, protocol::{wl_compositor, wl_keyboard, wl_output, wl_registry, wl_seat, wl_shm, wl_surface}, Connection, Dispatch, QueueHandle, WEnum
-};
-use wayland_protocols::ext::session_lock::v1::client::ext_session_lock_manager_v1;
 use tracing::debug;
+use wayland_client::{
+    Connection, Dispatch, QueueHandle, WEnum, delegate_noop,
+    protocol::{
+        wl_callback, wl_compositor, wl_display, wl_keyboard, wl_output, wl_registry, wl_seat,
+        wl_shm, wl_shm_pool, wl_surface,
+    },
+};
+use wayland_protocols::ext::session_lock::v1::client::{
+    ext_session_lock_manager_v1, ext_session_lock_v1,
+};
 
 use crate::surface::NLockSurface;
 
 pub struct NLockState {
     pub running: bool,
+    pub locked: bool,
+    pub unlocked: bool,
+    pub display: wl_display::WlDisplay,
+    pub registry: Option<wl_registry::WlRegistry>,
     pub compositor: Option<wl_compositor::WlCompositor>,
     pub shm: Option<wl_shm::WlShm>,
     pub seat: Option<wl_seat::WlSeat>,
     pub session_lock_manager: Option<ext_session_lock_manager_v1::ExtSessionLockManagerV1>,
+    pub session_lock: Option<ext_session_lock_v1::ExtSessionLockV1>,
     pub surfaces: Vec<NLockSurface>,
 }
 
 impl NLockState {
-    pub fn new() -> Self {
+    pub fn new(display: wl_display::WlDisplay) -> Self {
         Self {
             running: true,
+            locked: false,
+            unlocked: false,
+            display,
+            registry: None,
             compositor: None,
             shm: None,
             seat: None,
             session_lock_manager: None,
+            session_lock: None,
             surfaces: Vec::new(),
         }
     }
-}
 
-impl Default for NLockState {
-    fn default() -> Self {
-        Self::new()
+    pub fn get_registry(&mut self, qh: &QueueHandle<Self>) {
+        let registry = self.display.get_registry(qh, ());
+        self.registry = Some(registry);
+    }
+
+    pub fn lock(&mut self, qh: &QueueHandle<Self>) {
+        if let Some(session_lock_manager) = &self.session_lock_manager {
+            let session_lock = session_lock_manager.lock(qh, ());
+            self.session_lock = Some(session_lock);
+        }
+    }
+
+    pub fn unlock(&mut self, qh: &QueueHandle<Self>) {
+        if let Some(session_lock) = &self.session_lock {
+            if self.locked {
+                session_lock.unlock_and_destroy();
+            } else {
+                session_lock.destroy();
+            }
+
+            self.surfaces.iter_mut().for_each(|s| s.destroy());
+
+            self.display.sync(qh, ());
+            self.session_lock = None;
+            self.locked = false;
+            self.unlocked = true;
+
+            debug!("Session is unlocked");
+        }
     }
 }
 
@@ -67,14 +108,12 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                     state.seat = Some(seat);
                 }
                 "wl_output" => {
-                    let surface = NLockSurface::new();
+                    let index = state.surfaces.len();
+                    let output =
+                        registry.bind::<wl_output::WlOutput, _, _>(name, version, qh, index);
+
+                    let surface = NLockSurface::new(output, index);
                     state.surfaces.push(surface);
-                    let _ = registry.bind::<wl_output::WlOutput, _, _>(
-                        name,
-                        version,
-                        qh,
-                        state.surfaces.len() - 1,
-                    );
                 }
                 "ext_session_lock_manager_v1" => {
                     let session_lock_manager = registry
@@ -96,6 +135,31 @@ delegate_noop!(NLockState: ignore wl_compositor::WlCompositor);
 delegate_noop!(NLockState: ignore wl_shm::WlShm);
 delegate_noop!(NLockState: ignore wl_surface::WlSurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
+delegate_noop!(NLockState: ignore wl_callback::WlCallback);
+delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
+
+impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
+    fn event(
+        state: &mut Self,
+        _: &ext_session_lock_v1::ExtSessionLockV1,
+        event: <ext_session_lock_v1::ExtSessionLockV1 as wayland_client::Proxy>::Event,
+        _: &(),
+        _: &Connection,
+        qh: &QueueHandle<Self>,
+    ) {
+        match event {
+            ext_session_lock_v1::Event::Locked => {
+                state.locked = true;
+
+                debug!("Session is locked");
+            }
+            ext_session_lock_v1::Event::Finished => {
+                state.unlock(qh);
+            }
+            _ => {}
+        }
+    }
+}
 
 impl Dispatch<wl_output::WlOutput, usize> for NLockState {
     fn event(
@@ -127,8 +191,10 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 state.surfaces[*data].output_scale = factor;
             }
             wl_output::Event::Done => {
-                if let Some(compositor) = &state.compositor {
-                    state.surfaces[*data].create_surface(compositor, qh);
+                if let (Some(compositor), Some(session_lock)) =
+                    (&state.compositor, &state.session_lock)
+                {
+                    state.surfaces[*data].create_surface(compositor, session_lock, qh);
                 }
             }
             _ => {}
@@ -151,6 +217,8 @@ impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
         {
             if capabilities.contains(wl_seat::Capability::Keyboard) {
                 seat.get_keyboard(qh, ());
+
+                debug!("Found keyboard");
             }
         }
     }
