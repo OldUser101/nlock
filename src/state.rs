@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2025, Nathan Gill
+
 use wayland_client::{
     delegate_noop, protocol::{wl_compositor, wl_keyboard, wl_output, wl_registry, wl_seat, wl_shm, wl_surface}, Connection, Dispatch, QueueHandle, WEnum
 };

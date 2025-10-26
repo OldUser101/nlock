@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2025, Nathan Gill
+
 use wayland_client::{
     QueueHandle, WEnum,
     protocol::{wl_compositor::WlCompositor, wl_output, wl_surface},
