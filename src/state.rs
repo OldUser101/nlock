@@ -28,7 +28,8 @@ pub struct NLockState {
     pub session_lock: Option<ext_session_lock_v1::ExtSessionLockV1>,
     pub surfaces: Vec<NLockSurface>,
     pub seat: NLockSeat,
-    pub xkb: NLockXkb, 
+    pub xkb: NLockXkb,
+    pub password: String,
 }
 
 impl NLockState {
@@ -47,6 +48,7 @@ impl NLockState {
             surfaces: Vec::new(),
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
+            password: "".to_string(),
         }
     }
 

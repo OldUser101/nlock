@@ -196,7 +196,7 @@ impl NLockSurface {
         }
     }
 
-    pub fn render(&mut self, shm: &wl_shm::WlShm, qh: &QueueHandle<NLockState>) {
+    pub fn render(&mut self, password_len: usize, shm: &wl_shm::WlShm, qh: &QueueHandle<NLockState>) {
         let idx = match self.get_buffer_idx(shm, qh) {
             Some(i) => i,
             None => {
@@ -217,7 +217,7 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(context) {
+        if let Err(e) = self.render_frame(password_len, context) {
             warn!("Error while rendering: {e}");
         }
 
@@ -227,12 +227,12 @@ impl NLockSurface {
         surface.commit();
     }
 
-    pub fn render_frame(&self, context: &cairo::Context) -> Result<()> {
+    fn render_frame(&self, password_len: usize, context: &cairo::Context) -> Result<()> {
         self.configure_cairo_font(context)?;
         self.clear_surface(context)?;
 
         context.save()?;
-        context.set_source_rgb(1.0, 0.0, 0.0);
+        context.set_source_rgb(0.0, 0.0, 0.0);
         context.set_line_width(DEFAULT_LINE_WIDTH);
         context.rectangle(
             0.0,
@@ -254,14 +254,14 @@ impl NLockSurface {
         context.rectangle(box_x, box_y, box_w, box_h);
         context.clip();
 
-        let text = "*******";
-        let ext = context.text_extents(text)?;
+        let text = "*".repeat(password_len);
+        let ext = context.text_extents(text.as_str())?;
         let text_x = box_x + (box_w - ext.width()) / 2.0 - ext.x_bearing();
         let text_y = box_y + (box_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
 
         context.set_source_rgb(1.0, 1.0, 1.0);
         context.move_to(text_x, text_y);
-        context.show_text(text)?;
+        context.show_text(text.as_str())?;
         context.restore()?;
 
         Ok(())
@@ -303,7 +303,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
                 }
 
                 lock_surface.ack_configure(serial);
-                surface.render(shm, qh);
+                surface.render(state.password.len(), shm, qh);
             }
         }
     }

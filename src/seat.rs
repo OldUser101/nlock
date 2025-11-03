@@ -39,6 +39,8 @@ pub struct NLockSeat {
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
     pub repeat_rate: Option<i32>,
     pub repeat_delay: Option<i32>,
+    pub repeat_keysym: Option<xkb::Keysym>,
+    pub repeat_codepoint: Option<u32>,
 }
 
 impl NLockSeat {
@@ -48,6 +50,8 @@ impl NLockSeat {
             keyboard: None,
             repeat_rate: None,
             repeat_delay: None,
+            repeat_keysym: None,
+            repeat_codepoint: None,
         }
     }
 }
@@ -59,7 +63,7 @@ impl Default for NLockSeat {
 }
 
 impl NLockState {
-    pub fn handle_keymap(&mut self, fd: OwnedFd, size: u32) -> Result<()> {
+    pub fn handle_keymap_event(&mut self, fd: OwnedFd, size: u32) -> Result<()> {
         let keymap =
             unsafe { xkb::Keymap::new_from_fd(&self.xkb.context, fd, size as usize, 1, 0) }?
                 .ok_or(anyhow!("Failed to get keymap"))?;
@@ -73,25 +77,80 @@ impl NLockState {
         Ok(())
     }
 
-    pub fn handle_key(
+    pub fn submit_password(&mut self) {
+        debug!("Password: '{}'", &self.password);
+    }
+
+    pub fn process_key(
+        &mut self,
+        keysym: xkb::Keysym,
+        codepoint: u32,
+        qh: &QueueHandle<NLockState>,
+    ) {
+        match keysym {
+            xkb::Keysym::KP_Enter | xkb::Keysym::Return => {
+                self.submit_password();
+            }
+            xkb::Keysym::BackSpace | xkb::Keysym::Delete => {
+                if !self.password.is_empty() {
+                    self.password.pop();
+                }
+            }
+            _ => match char::from_u32(codepoint) {
+                Some(ch) if !ch.is_control() => {
+                    self.password.push(ch);
+                }
+                _ => {}
+            },
+        }
+
+        let shm = self.shm.as_ref().unwrap();
+        for i in 0..self.surfaces.len() {
+            self.surfaces[i].render(self.password.len(), shm, qh);
+        }
+    }
+
+    pub fn handle_key_event(
         &mut self,
         key: u32,
-        _key_state: WEnum<wl_keyboard::KeyState>,
+        key_state: WEnum<wl_keyboard::KeyState>,
+        qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
         if key == 1 {
             self.running = false;
         }
 
+        if self.xkb.state.is_none() {
+            return Err(anyhow!("Xkb state not set"));
+        }
+
+        let keycode = xkb::Keycode::new(key + 8);
+        let keysym = self.xkb.state.as_ref().unwrap().key_get_one_sym(keycode);
+        let codepoint = self.xkb.state.as_ref().unwrap().key_get_utf32(keycode);
+
+        if let WEnum::Value(wl_keyboard::KeyState::Pressed) = key_state {
+            self.process_key(keysym, codepoint, qh);
+        }
+
         Ok(())
     }
 
-    pub fn handle_modifiers(
+    pub fn handle_modifiers_event(
         &mut self,
-        _depressed: u32,
-        _latched: u32,
-        _locked: u32,
-        _group: u32,
+        depressed: u32,
+        latched: u32,
+        locked: u32,
+        group: u32,
     ) -> Result<()> {
+        if self.xkb.state.is_none() {
+            return Err(anyhow!("Xkb state not set"));
+        }
+
+        self.xkb
+            .state
+            .as_mut()
+            .unwrap()
+            .update_mask(depressed, latched, locked, 0, 0, group);
         Ok(())
     }
 }
@@ -103,12 +162,12 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
         event: <wl_keyboard::WlKeyboard as wayland_client::Proxy>::Event,
         _: &(),
         _: &Connection,
-        _: &QueueHandle<Self>,
+        qh: &QueueHandle<Self>,
     ) {
         match event {
             wl_keyboard::Event::Keymap { format, fd, size } => {
                 if let WEnum::Value(wl_keyboard::KeymapFormat::XkbV1) = format
-                    && let Err(e) = state.handle_keymap(fd, size)
+                    && let Err(e) = state.handle_keymap_event(fd, size)
                 {
                     warn!("Error while handling keymap event: {e}");
                 }
@@ -119,7 +178,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
                 key,
                 state: key_state,
             } => {
-                if let Err(e) = state.handle_key(key, key_state) {
+                if let Err(e) = state.handle_key_event(key, key_state, qh) {
                     warn!("Error while handling key event: {e}");
                 }
             }
@@ -135,7 +194,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
                 group,
             } => {
                 if let Err(e) =
-                    state.handle_modifiers(mods_depressed, mods_latched, mods_locked, group)
+                    state.handle_modifiers_event(mods_depressed, mods_latched, mods_locked, group)
                 {
                     warn!("Error while handling modifiers event: {e}");
                 }
