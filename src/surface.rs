@@ -15,6 +15,7 @@ use crate::{buffer::NLockBuffer, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
 const DEFAULT_FONT_SIZE: f64 = 72.0;
+const DEFAULT_LINE_WIDTH: f64 = 25.0;
 
 pub struct NLockSurface {
     pub created: bool,
@@ -229,8 +230,15 @@ impl NLockSurface {
     }
 
     pub fn render_frame(&self, context: &cairo::Context) -> Result<()> {
-        self.configure_cairo_font(context).ok();
-        self.clear_surface(context).ok();
+        self.configure_cairo_font(context)?;
+        self.clear_surface(context)?;
+
+        context.save()?;
+        context.set_source_rgb(1.0, 0.0, 0.0);
+        context.set_line_width(DEFAULT_LINE_WIDTH);
+        context.rectangle(0.0, 0.0, self.width.unwrap() as f64, self.height.unwrap() as f64);
+        context.stroke()?;
+        context.restore()?;
 
         let fe = context.font_extents()?;
         
@@ -250,7 +258,7 @@ impl NLockSurface {
 
         context.set_source_rgb(1.0, 1.0, 1.0);
         context.move_to(text_x, text_y);
-        context.show_text(text).ok();
+        context.show_text(text)?;
         context.restore()?;
         
         Ok(())
