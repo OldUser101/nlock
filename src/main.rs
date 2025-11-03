@@ -33,7 +33,7 @@ fn start() -> Result<()> {
         bail!("Missing WlShm");
     }
 
-    if state.seat.is_none() {
+    if state.r_seat.is_none() {
         bail!("Missing WlSeat");
     }
 

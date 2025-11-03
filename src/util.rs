@@ -23,7 +23,7 @@ pub fn open_shm() -> Option<OwnedFd> {
             time.timestamp_micros(),
             time.timestamp_subsec_nanos()
         );
-        debug!("Trying temp file name '{}'", name);
+        debug!("Trying shm file name '{}'", name);
 
         if let Ok(fd) = shm_open(
             name.as_str(),

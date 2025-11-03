@@ -296,6 +296,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
                 let surface = &mut state.surfaces[*data];
                 surface.width = Some(width);
                 surface.height = Some(height);
+
                 if let Err(e) = surface.calculate_dpi() {
                     warn!("Failed to set surface DPI: {e}, using default {DEFAULT_DPI}");
                     surface.dpi = Some(DEFAULT_DPI);

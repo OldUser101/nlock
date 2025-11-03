@@ -3,9 +3,9 @@
 
 use tracing::debug;
 use wayland_client::{
-    Connection, Dispatch, QueueHandle, WEnum, delegate_noop,
+    Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
-        wl_callback, wl_compositor, wl_display, wl_keyboard, wl_output, wl_registry, wl_seat,
+        wl_callback, wl_compositor, wl_display, wl_output, wl_registry, wl_seat,
         wl_shm, wl_shm_pool, wl_surface,
     },
 };
@@ -13,7 +13,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_manager_v1, ext_session_lock_v1,
 };
 
-use crate::surface::NLockSurface;
+use crate::{seat::{NLockSeat, NLockXkb}, surface::NLockSurface};
 
 pub struct NLockState {
     pub running: bool,
@@ -23,10 +23,12 @@ pub struct NLockState {
     pub registry: Option<wl_registry::WlRegistry>,
     pub compositor: Option<wl_compositor::WlCompositor>,
     pub shm: Option<wl_shm::WlShm>,
-    pub seat: Option<wl_seat::WlSeat>,
+    pub r_seat: Option<wl_seat::WlSeat>,
     pub session_lock_manager: Option<ext_session_lock_manager_v1::ExtSessionLockManagerV1>,
     pub session_lock: Option<ext_session_lock_v1::ExtSessionLockV1>,
     pub surfaces: Vec<NLockSurface>,
+    pub seat: NLockSeat,
+    pub xkb: NLockXkb, 
 }
 
 impl NLockState {
@@ -39,10 +41,12 @@ impl NLockState {
             registry: None,
             compositor: None,
             shm: None,
-            seat: None,
+            r_seat: None,
             session_lock_manager: None,
             session_lock: None,
             surfaces: Vec::new(),
+            seat: NLockSeat::default(),
+            xkb: NLockXkb::default(),
         }
     }
 
@@ -105,7 +109,7 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                 }
                 "wl_seat" => {
                     let seat = registry.bind::<wl_seat::WlSeat, _, _>(name, version, qh, ());
-                    state.seat = Some(seat);
+                    state.r_seat = Some(seat);
                 }
                 "wl_output" => {
                     let index = state.surfaces.len();
@@ -204,46 +208,3 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
     }
 }
 
-impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
-    fn event(
-        _: &mut Self,
-        seat: &wl_seat::WlSeat,
-        event: <wl_seat::WlSeat as wayland_client::Proxy>::Event,
-        _: &(),
-        _: &Connection,
-        qh: &QueueHandle<Self>,
-    ) {
-        if let wl_seat::Event::Capabilities {
-            capabilities: WEnum::Value(capabilities),
-        } = event
-        {
-            if capabilities.contains(wl_seat::Capability::Keyboard) {
-                seat.get_keyboard(qh, ());
-
-                debug!("Found keyboard");
-            }
-            if capabilities.contains(wl_seat::Capability::Pointer) {
-                seat.get_pointer(qh, ());
-
-                debug!("Found pointer");
-            }
-        }
-    }
-}
-
-impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
-    fn event(
-        state: &mut Self,
-        _: &wl_keyboard::WlKeyboard,
-        event: <wl_keyboard::WlKeyboard as wayland_client::Proxy>::Event,
-        _: &(),
-        _: &Connection,
-        _: &QueueHandle<Self>,
-    ) {
-        if let wl_keyboard::Event::Key { key, .. } = event {
-            if key == 1 {
-                state.running = false;
-            }
-        }
-    }
-}
