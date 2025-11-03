@@ -3,10 +3,13 @@
 
 use nix::{
     fcntl::OFlag,
-    sys::{mman::{shm_open, shm_unlink}, stat::Mode},
+    sys::{
+        mman::{shm_open, shm_unlink},
+        stat::Mode,
+    },
     unistd::getpid,
 };
-use std::{os::fd::OwnedFd};
+use std::os::fd::OwnedFd;
 use tracing::debug;
 
 pub fn open_shm() -> Option<OwnedFd> {

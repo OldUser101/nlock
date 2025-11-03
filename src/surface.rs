@@ -217,7 +217,7 @@ impl NLockSurface {
 
         let buffer = &self.buffers[idx];
         let wl_buffer = &buffer.buffer;
-        
+
         let context = &buffer.context;
         if let Err(e) = self.render_frame(context) {
             warn!("Error while rendering: {e}");
@@ -236,12 +236,17 @@ impl NLockSurface {
         context.save()?;
         context.set_source_rgb(1.0, 0.0, 0.0);
         context.set_line_width(DEFAULT_LINE_WIDTH);
-        context.rectangle(0.0, 0.0, self.width.unwrap() as f64, self.height.unwrap() as f64);
+        context.rectangle(
+            0.0,
+            0.0,
+            self.width.unwrap() as f64,
+            self.height.unwrap() as f64,
+        );
         context.stroke()?;
         context.restore()?;
 
         let fe = context.font_extents()?;
-        
+
         let box_h = fe.height() * 1.5;
         let box_w = self.width.unwrap() as f64 * 0.5;
         let box_x = (self.width.unwrap() as f64 - box_w) / 2.0;
@@ -260,7 +265,7 @@ impl NLockSurface {
         context.move_to(text_x, text_y);
         context.show_text(text)?;
         context.restore()?;
-        
+
         Ok(())
     }
 

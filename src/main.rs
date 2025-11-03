@@ -2,6 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 pub mod buffer;
+pub mod seat;
 pub mod state;
 pub mod surface;
 pub mod util;

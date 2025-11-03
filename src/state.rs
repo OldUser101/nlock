@@ -222,6 +222,11 @@ impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
 
                 debug!("Found keyboard");
             }
+            if capabilities.contains(wl_seat::Capability::Pointer) {
+                seat.get_pointer(qh, ());
+
+                debug!("Found pointer");
+            }
         }
     }
 }
