@@ -32,7 +32,6 @@ pub struct NLockSurface {
     pub output: wl_output::WlOutput,
     pub lock_surface: Option<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1>,
     pub buffers: Vec<NLockBuffer>,
-    pub image_surface: Option<cairo::ImageSurface>,
 }
 
 impl NLockSurface {
@@ -52,7 +51,6 @@ impl NLockSurface {
             output,
             lock_surface: None,
             buffers: Vec::new(),
-            image_surface: None,
         }
     }
 
