@@ -9,6 +9,7 @@ use wayland_client::{
 use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
+use anyhow::Result;
 
 use crate::{buffer::NLockBuffer, state::NLockState};
 
@@ -24,6 +25,7 @@ pub struct NLockSurface {
     pub output: wl_output::WlOutput,
     pub lock_surface: Option<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1>,
     pub buffers: Vec<NLockBuffer>,
+    pub image_surface: Option<cairo::ImageSurface>,
 }
 
 impl NLockSurface {
@@ -40,7 +42,21 @@ impl NLockSurface {
             output,
             lock_surface: None,
             buffers: Vec::new(),
+            image_surface: None,
         }
+    }
+
+    fn cairo_setup(context: &mut cairo::Context) -> Result<()> {
+        context.set_antialias(cairo::Antialias::Best);
+
+        context.save()?;
+        context.set_operator(cairo::Operator::Source);
+        context.set_source_rgb(0.0, 0.0, 0.0);
+        context.paint()?;
+        context.restore()?;
+        context.identity_matrix();
+        
+        Ok(())
     }
 
     fn get_buffer_idx(
@@ -63,7 +79,9 @@ impl NLockSurface {
                 let width = self.width.unwrap() as i32;
                 let height = self.height.unwrap() as i32;
 
-                let buf = NLockBuffer::new(shm, width, height, wl_shm::Format::Argb8888, true, qh)?;
+                let mut buf = NLockBuffer::new(shm, width, height, wl_shm::Format::Argb8888, true, qh)?;
+                Self::cairo_setup(&mut buf.context).ok()?;
+                
                 self.buffers.push(buf);
 
                 self.buffers.len() - 1
@@ -111,13 +129,7 @@ impl NLockSurface {
         };
 
         let buffer = &self.buffers[idx];
-        let wl_buffer = match &buffer.buffer {
-            Some(wl_buf) => wl_buf,
-            None => {
-                warn!("wl_buffer not set when attempting render");
-                return;
-            }
-        };
+        let wl_buffer = &buffer.buffer;
 
         surface.set_buffer_scale(self.output_scale);
         surface.attach(Some(wl_buffer), 0, 0);
@@ -131,6 +143,7 @@ impl NLockSurface {
         }
 
         self.buffers.iter_mut().for_each(|buf| buf.destroy());
+        self.output.release();
     }
 }
 

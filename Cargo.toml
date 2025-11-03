@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.100"
+cairo-rs = "0.21.2"
 chrono = "0.4.42"
 nix = { version = "0.30.1", features = [ "fs", "mman", "process" ] }
 tracing = "0.1.41"

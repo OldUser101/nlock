@@ -18,12 +18,14 @@ use wayland_client::{
 use crate::{state::NLockState, util::open_shm};
 
 pub struct NLockBuffer {
-    pub buffer: Option<wl_buffer::WlBuffer>,
+    pub buffer: wl_buffer::WlBuffer,
     pub data: NonNull<c_void>,
     pub width: i32,
     pub height: i32,
     pub size: usize,
     pub state: Arc<Mutex<NLockBufferState>>,
+    pub surface: cairo::ImageSurface,
+    pub context: cairo::Context,
 }
 
 #[derive(Default)]
@@ -65,21 +67,33 @@ impl NLockBuffer {
 
         pool.destroy();
 
+        let surface = unsafe {
+            cairo::ImageSurface::create_for_data_unsafe(
+                data.as_ptr() as *mut u8,
+                cairo::Format::ARgb32,
+                width,
+                height,
+                width * 4,
+            )
+        }
+        .ok()?;
+
+        let context = cairo::Context::new(&surface).ok()?;
+
         Some(Self {
-            buffer: Some(buffer),
+            buffer,
             data,
             width,
             height,
             size: size as usize,
             state: state.clone(),
+            surface,
+            context,
         })
     }
 
     pub fn destroy(&mut self) {
-        if let Some(buffer) = &self.buffer {
-            buffer.destroy();
-        }
-
+        self.buffer.destroy();
         let _ = unsafe { munmap(self.data, self.size) };
     }
 }
