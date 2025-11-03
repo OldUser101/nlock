@@ -174,14 +174,16 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
             wl_output::Event::Geometry {
                 x: _,
                 y: _,
-                physical_width: _,
-                physical_height: _,
+                physical_width,
+                physical_height,
                 subpixel,
                 make: _,
                 model: _,
                 transform: _,
             } => {
                 state.surfaces[*data].subpixel = Some(subpixel);
+                state.surfaces[*data].physical_width = Some(physical_width);
+                state.surfaces[*data].physical_height = Some(physical_height);
             }
             wl_output::Event::Name { name } => {
                 debug!("Found output '{name}'");
