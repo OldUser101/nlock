@@ -9,6 +9,7 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_pointer, wl_seat},
 };
 use xkbcommon::xkb;
+use zeroize::Zeroize;
 
 use crate::state::NLockState;
 
@@ -77,8 +78,14 @@ impl NLockState {
         Ok(())
     }
 
+    pub fn clear_password(&mut self) {
+        self.password.zeroize();
+        self.password.clear();
+    }
+
     pub fn submit_password(&mut self) {
         debug!("Password: '{}'", &self.password);
+        self.clear_password();
     }
 
     pub fn process_key(
