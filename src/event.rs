@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2025, Nathan Gill
+
 use std::os::fd::BorrowedFd;
 use nix::{errno::Errno, poll::PollTimeout, sys::epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags}};
 use wayland_client::EventQueue;
