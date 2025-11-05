@@ -2,6 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 pub mod buffer;
+pub mod event;
 pub mod seat;
 pub mod state;
 pub mod surface;
@@ -10,7 +11,7 @@ pub mod util;
 use crate::state::NLockState;
 
 use anyhow::{Result, bail};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 use wayland_client::Connection;
 
 fn start() -> Result<()> {
@@ -44,7 +45,9 @@ fn start() -> Result<()> {
     state.lock(&qh);
 
     while state.running {
-        event_queue.blocking_dispatch(&mut state)?;
+        if let Err(e) = state.event_loop_cycle(&mut event_queue) {
+            warn!("Error while running event loop: {e}");
+        }
     }
 
     state.unlock(&qh);

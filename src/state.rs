@@ -1,19 +1,23 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use nix::sys::epoll::Epoll;
 use tracing::debug;
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
-        wl_callback, wl_compositor, wl_display, wl_output, wl_registry, wl_seat,
-        wl_shm, wl_shm_pool, wl_surface,
+        wl_callback, wl_compositor, wl_display, wl_output, wl_registry, wl_seat, wl_shm,
+        wl_shm_pool, wl_surface,
     },
 };
 use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_manager_v1, ext_session_lock_v1,
 };
 
-use crate::{seat::{NLockSeat, NLockXkb}, surface::NLockSurface};
+use crate::{
+    seat::{NLockSeat, NLockXkb},
+    surface::NLockSurface,
+};
 
 pub struct NLockState {
     pub running: bool,
@@ -30,6 +34,7 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: String,
+    pub epoll: Option<Epoll>,
 }
 
 impl NLockState {
@@ -49,6 +54,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: "".to_string(),
+            epoll: None,
         }
     }
 
@@ -209,4 +215,3 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
         }
     }
 }
-
