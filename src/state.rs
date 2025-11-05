@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use nix::sys::epoll::Epoll;
+use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tracing::debug;
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
@@ -35,6 +35,7 @@ pub struct NLockState {
     pub xkb: NLockXkb,
     pub password: String,
     pub epoll: Option<Epoll>,
+    pub timers: Vec<(TimerFd, u64)>,
 }
 
 impl NLockState {
@@ -55,6 +56,7 @@ impl NLockState {
             xkb: NLockXkb::default(),
             password: "".to_string(),
             epoll: None,
+            timers: Vec::new(),
         }
     }
 

@@ -2,7 +2,8 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
-use std::os::fd::OwnedFd;
+use nix::sys::{time::TimeSpec, timerfd::Expiration};
+use std::{os::fd::OwnedFd, time::Duration};
 use tracing::{debug, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
@@ -11,7 +12,7 @@ use wayland_client::{
 use xkbcommon::xkb;
 use zeroize::Zeroize;
 
-use crate::state::NLockState;
+use crate::{event::EventType, state::NLockState};
 
 pub struct NLockXkb {
     pub context: xkb::Context,
@@ -38,10 +39,11 @@ impl Default for NLockXkb {
 pub struct NLockSeat {
     pub pointer: Option<wl_pointer::WlPointer>,
     pub keyboard: Option<wl_keyboard::WlKeyboard>,
-    pub repeat_rate: Option<i32>,
-    pub repeat_delay: Option<i32>,
+    pub repeat_rate: i32,
+    pub repeat_delay: i32,
     pub repeat_keysym: Option<xkb::Keysym>,
     pub repeat_codepoint: Option<u32>,
+    pub repeat_timer_set: bool,
 }
 
 impl NLockSeat {
@@ -49,10 +51,11 @@ impl NLockSeat {
         Self {
             pointer: None,
             keyboard: None,
-            repeat_rate: None,
-            repeat_delay: None,
+            repeat_rate: 0,
+            repeat_delay: 0,
             repeat_keysym: None,
             repeat_codepoint: None,
+            repeat_timer_set: false,
         }
     }
 }
@@ -139,7 +142,43 @@ impl NLockState {
             self.process_key(keysym, codepoint, qh);
         }
 
+        if self.seat.repeat_timer_set
+            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as u64)
+        {
+            return Err(e);
+        } else {
+            self.seat.repeat_timer_set = false;
+        }
+
+        if let WEnum::Value(wl_keyboard::KeyState::Pressed) = key_state
+            && self.seat.repeat_rate > 0
+        {
+            self.seat.repeat_keysym = Some(keysym);
+            self.seat.repeat_codepoint = Some(codepoint);
+
+            let repeat_delay_duration = Duration::from_millis(self.seat.repeat_delay as u64);
+            let repeat_rate_duration = Duration::from_millis(self.seat.repeat_rate as u64);
+
+            self.set_timer(
+                EventType::KeyboardRepeat as u64,
+                Expiration::IntervalDelayed(
+                    TimeSpec::from_duration(repeat_delay_duration),
+                    TimeSpec::from_duration(repeat_rate_duration),
+                ),
+            )?;
+
+            self.seat.repeat_timer_set = true;
+        }
+
         Ok(())
+    }
+
+    pub fn handle_repeat_event(&mut self, qh: &QueueHandle<NLockState>) {
+        if let (Some(keysym), Some(codepoint)) =
+            (self.seat.repeat_keysym, self.seat.repeat_codepoint)
+        {
+            self.process_key(keysym, codepoint, qh);
+        }
     }
 
     pub fn handle_modifiers_event(
@@ -190,8 +229,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
                 }
             }
             wl_keyboard::Event::RepeatInfo { rate, delay } => {
-                state.seat.repeat_rate = Some(rate);
-                state.seat.repeat_delay = Some(delay);
+                state.seat.repeat_rate = rate;
+                state.seat.repeat_delay = delay;
             }
             wl_keyboard::Event::Modifiers {
                 serial: _,
