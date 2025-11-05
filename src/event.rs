@@ -134,8 +134,7 @@ impl NLockState {
                         let mut buf = [0u8; std::mem::size_of::<u64>()];
                         let res = read(&timer.0, &mut buf)?;
                         if res == std::mem::size_of::<u64>() {
-                            // This feels wrong, also, the bytes might not be LE
-                            let intervals = u64::from_le_bytes(buf);
+                            let intervals = u64::from_ne_bytes(buf);
                             for _ in 0..intervals {
                                 self.handle_repeat_event(&qh);
                             }
