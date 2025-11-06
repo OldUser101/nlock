@@ -285,12 +285,20 @@ impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
         } = event
         {
             if capabilities.contains(wl_seat::Capability::Keyboard) {
+                if let Some(keyboard) = &state.seat.keyboard {
+                    keyboard.release();
+                }
+                
                 let keyboard = seat.get_keyboard(qh, ());
                 state.seat.keyboard = Some(keyboard);
 
                 debug!("Found keyboard");
             }
             if capabilities.contains(wl_seat::Capability::Pointer) {
+                if let Some(pointer) = &state.seat.pointer {
+                    pointer.release();
+                }
+                
                 let pointer = seat.get_pointer(qh, ());
                 state.seat.pointer = Some(pointer);
 
