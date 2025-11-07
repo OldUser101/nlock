@@ -1,8 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
+use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
+use tracing::{info, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
@@ -13,14 +18,16 @@ use wayland_client::{
 use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_manager_v1, ext_session_lock_v1,
 };
+use zeroize::Zeroizing;
 
 use crate::{
+    auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
     surface::NLockSurface,
 };
 
 pub struct NLockState {
-    pub running: bool,
+    pub running: Arc<AtomicBool>,
     pub locked: bool,
     pub unlocked: bool,
     pub display: wl_display::WlDisplay,
@@ -33,15 +40,16 @@ pub struct NLockState {
     pub surfaces: Vec<NLockSurface>,
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
-    pub password: String,
+    pub password: Zeroizing<String>,
     pub epoll: Option<Epoll>,
     pub timers: Vec<(TimerFd, u64)>,
+    pub auth_tx: mpsc::Sender<AuthRequest>,
 }
 
 impl NLockState {
-    pub fn new(display: wl_display::WlDisplay) -> Self {
+    pub fn new(display: wl_display::WlDisplay, auth_tx: mpsc::Sender<AuthRequest>) -> Self {
         Self {
-            running: true,
+            running: Arc::new(AtomicBool::new(true)),
             locked: false,
             unlocked: false,
             display,
@@ -54,9 +62,10 @@ impl NLockState {
             surfaces: Vec::new(),
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
-            password: "".to_string(),
+            password: Zeroizing::new("".to_string()),
             epoll: None,
             timers: Vec::new(),
+            auth_tx,
         }
     }
 
@@ -87,8 +96,42 @@ impl NLockState {
             self.locked = false;
             self.unlocked = true;
 
+            self.clear_password();
+
             debug!("Session is unlocked");
         }
+    }
+
+    pub fn clear_password(&mut self) {
+        self.password.clear();
+    }
+
+    pub fn submit_password(&mut self) {
+        let tx_clone = self.auth_tx.clone();
+        let password = self.password.clone();
+        let running = self.running.clone();
+
+        tokio::spawn(async move {
+            let (resp_tx, resp_rx) = oneshot::channel();
+            if let Err(e) = tx_clone
+                .send(AuthRequest::Password(password, resp_tx))
+                .await
+            {
+                warn!("Failed to submit password: {e}");
+                return;
+            }
+
+            match resp_rx.await {
+                Ok(Ok(())) => {
+                    info!("Authentication completed sucecssfully");
+                    running.store(false, Ordering::Relaxed);
+                },
+                Ok(Err(e)) => warn!("PAM authentication error: {e}"),
+                Err(e) => warn!("Error receiving from auth thread: {e}"),
+            }
+        });
+
+        self.clear_password();
     }
 }
 

@@ -10,7 +10,6 @@ use wayland_client::{
     protocol::{wl_keyboard, wl_pointer, wl_seat},
 };
 use xkbcommon::xkb;
-use zeroize::Zeroize;
 
 use crate::{event::EventType, state::NLockState};
 
@@ -81,15 +80,6 @@ impl NLockState {
         Ok(())
     }
 
-    pub fn clear_password(&mut self) {
-        self.password.zeroize();
-        self.password.clear();
-    }
-
-    pub fn submit_password(&mut self) {
-        debug!("Password: '{}'", &self.password);
-        self.clear_password();
-    }
 
     pub fn process_key(
         &mut self,
@@ -126,10 +116,6 @@ impl NLockState {
         key_state: WEnum<wl_keyboard::KeyState>,
         qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
-        if key == 1 {
-            self.running = false;
-        }
-
         if self.xkb.state.is_none() {
             return Err(anyhow!("Xkb state not set"));
         }
