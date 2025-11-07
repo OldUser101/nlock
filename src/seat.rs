@@ -80,7 +80,6 @@ impl NLockState {
         Ok(())
     }
 
-
     pub fn process_key(
         &mut self,
         keysym: xkb::Keysym,
@@ -274,7 +273,7 @@ impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
                 if let Some(keyboard) = &state.seat.keyboard {
                     keyboard.release();
                 }
-                
+
                 let keyboard = seat.get_keyboard(qh, ());
                 state.seat.keyboard = Some(keyboard);
 
@@ -284,7 +283,7 @@ impl Dispatch<wl_seat::WlSeat, ()> for NLockState {
                 if let Some(pointer) = &state.seat.pointer {
                     pointer.release();
                 }
-                
+
                 let pointer = seat.get_pointer(qh, ());
                 state.seat.pointer = Some(pointer);
 

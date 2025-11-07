@@ -196,7 +196,12 @@ impl NLockSurface {
         }
     }
 
-    pub fn render(&mut self, password_len: usize, shm: &wl_shm::WlShm, qh: &QueueHandle<NLockState>) {
+    pub fn render(
+        &mut self,
+        password_len: usize,
+        shm: &wl_shm::WlShm,
+        qh: &QueueHandle<NLockState>,
+    ) {
         let idx = match self.get_buffer_idx(shm, qh) {
             Some(i) => i,
             None => {

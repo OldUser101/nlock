@@ -127,9 +127,13 @@ impl NLockState {
             match EventType::from_u64(event.data())? {
                 EventType::Wayland => {
                     wayland_sock_ready = true;
-                },
+                }
                 EventType::KeyboardRepeat => {
-                    if let Some(idx) = self.timers.iter().position(|timer| timer.1 == EventType::KeyboardRepeat as u64) {
+                    if let Some(idx) = self
+                        .timers
+                        .iter()
+                        .position(|timer| timer.1 == EventType::KeyboardRepeat as u64)
+                    {
                         let timer = &self.timers[idx];
                         let mut buf = [0u8; std::mem::size_of::<u64>()];
                         let res = read(&timer.0, &mut buf)?;

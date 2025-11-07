@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tokio::sync::{mpsc, oneshot};
@@ -125,7 +125,7 @@ impl NLockState {
                 Ok(Ok(())) => {
                     info!("Authentication completed sucecssfully");
                     running.store(false, Ordering::Relaxed);
-                },
+                }
                 Ok(Err(e)) => warn!("PAM authentication error: {e}"),
                 Err(e) => warn!("Error receiving from auth thread: {e}"),
             }

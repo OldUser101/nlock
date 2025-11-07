@@ -11,12 +11,15 @@ pub mod util;
 
 use std::sync::atomic::Ordering;
 
-use crate::{auth::{run_auth_loop, AuthRequest}, state::NLockState};
+use crate::{
+    auth::{AuthRequest, run_auth_loop},
+    state::NLockState,
+};
 
 use anyhow::{Result, bail};
+use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 use wayland_client::Connection;
-use tokio::sync::mpsc;
 
 async fn start() -> Result<()> {
     let conn = Connection::connect_to_env()?;
@@ -74,7 +77,7 @@ async fn start() -> Result<()> {
 async fn main() {
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(tracing::Level::DEBUG)
+        .with_max_level(tracing::Level::INFO)
         .init();
 
     let now = chrono::Local::now();
