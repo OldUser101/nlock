@@ -3,7 +3,7 @@
 
 use anyhow::{Result, anyhow};
 use nix::sys::{time::TimeSpec, timerfd::Expiration};
-use std::{os::fd::OwnedFd, time::Duration};
+use std::{os::fd::OwnedFd, sync::atomic::Ordering, time::Duration};
 use tracing::{debug, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
@@ -84,7 +84,6 @@ impl NLockState {
         &mut self,
         keysym: xkb::Keysym,
         codepoint: u32,
-        qh: &QueueHandle<NLockState>,
     ) {
         match keysym {
             xkb::Keysym::KP_Enter | xkb::Keysym::Return => {
@@ -103,17 +102,13 @@ impl NLockState {
             },
         }
 
-        let shm = self.shm.as_ref().unwrap();
-        for i in 0..self.surfaces.len() {
-            self.surfaces[i].render(self.password.len(), shm, qh);
-        }
+        self.state_changed.store(true, Ordering::Relaxed);
     }
 
     pub fn handle_key_event(
         &mut self,
         key: u32,
         key_state: WEnum<wl_keyboard::KeyState>,
-        qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
         if self.xkb.state.is_none() {
             return Err(anyhow!("Xkb state not set"));
@@ -124,7 +119,7 @@ impl NLockState {
         let codepoint = self.xkb.state.as_ref().unwrap().key_get_utf32(keycode);
 
         if let WEnum::Value(wl_keyboard::KeyState::Pressed) = key_state {
-            self.process_key(keysym, codepoint, qh);
+            self.process_key(keysym, codepoint);
         }
 
         if self.seat.repeat_timer_set
@@ -158,11 +153,11 @@ impl NLockState {
         Ok(())
     }
 
-    pub fn handle_repeat_event(&mut self, qh: &QueueHandle<NLockState>) {
+    pub fn handle_repeat_event(&mut self) {
         if let (Some(keysym), Some(codepoint)) =
             (self.seat.repeat_keysym, self.seat.repeat_codepoint)
         {
-            self.process_key(keysym, codepoint, qh);
+            self.process_key(keysym, codepoint);
         }
     }
 
@@ -193,7 +188,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
         event: <wl_keyboard::WlKeyboard as wayland_client::Proxy>::Event,
         _: &(),
         _: &Connection,
-        qh: &QueueHandle<Self>,
+        _: &QueueHandle<Self>,
     ) {
         match event {
             wl_keyboard::Event::Keymap { format, fd, size } => {
@@ -209,7 +204,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
                 key,
                 state: key_state,
             } => {
-                if let Err(e) = state.handle_key_event(key, key_state, qh) {
+                if let Err(e) = state.handle_key_event(key, key_state) {
                     warn!("Error while handling key event: {e}");
                 }
             }

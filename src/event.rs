@@ -4,14 +4,13 @@
 use anyhow::{Result, anyhow};
 use nix::{
     errno::Errno,
-    poll::PollTimeout,
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
     },
     unistd::read,
 };
-use std::os::fd::BorrowedFd;
+use std::{os::fd::BorrowedFd, sync::atomic::Ordering};
 use wayland_client::EventQueue;
 
 use crate::state::NLockState;
@@ -113,7 +112,8 @@ impl NLockState {
                 epoll,
             };
 
-            match epoll.wait(&mut events, PollTimeout::NONE) {
+            // This should timeout around 60 times per second
+            match epoll.wait(&mut events, 17u16) {
                 Ok(n) => n,
                 Err(Errno::EINTR) => 0,
                 Err(e) => return Err(anyhow!("Error during epoll: {e}")),
@@ -140,7 +140,7 @@ impl NLockState {
                         if res == std::mem::size_of::<u64>() {
                             let intervals = u64::from_ne_bytes(buf);
                             for _ in 0..intervals {
-                                self.handle_repeat_event(&qh);
+                                self.handle_repeat_event();
                             }
                         }
                     }
@@ -153,6 +153,18 @@ impl NLockState {
             event_queue.dispatch_pending(self)?;
         } else {
             std::mem::drop(read_guard);
+        }
+
+        // Re-render if state was updated
+        if self.state_changed.load(Ordering::Relaxed)
+            && let Some(shm) = &self.shm
+            && let Ok(border_color) = self.border_color.lock()
+        {
+            for i in 0..self.surfaces.len() {
+                self.surfaces[i].render(self.password.len(), *border_color, shm, &qh);
+            }
+
+            self.state_changed.store(false, Ordering::Relaxed);
         }
 
         Ok(())
