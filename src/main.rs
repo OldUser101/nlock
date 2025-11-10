@@ -3,6 +3,7 @@
 
 pub mod auth;
 pub mod buffer;
+pub mod config;
 pub mod event;
 pub mod seat;
 pub mod state;
@@ -12,8 +13,7 @@ pub mod util;
 use std::sync::atomic::Ordering;
 
 use crate::{
-    auth::{AuthRequest, run_auth_loop},
-    state::NLockState,
+    auth::{run_auth_loop, AuthRequest}, config::{NLockConfig, NLockRawConfig}, state::NLockState
 };
 
 use anyhow::{Result, bail};
@@ -25,18 +25,18 @@ use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 use wayland_client::Connection;
 
-async fn start() -> Result<()> {
+async fn start(config: NLockConfig) -> Result<()> {
     // Prevent ptrace from attaching to nlock
     // Only do this in release config
     #[cfg(not(debug_assertions))]
     prctl::set_dumpable(false)?;
-    
+
     let conn = Connection::connect_to_env()?;
     let display = conn.display();
 
     let (auth_tx, auth_rx) = mpsc::channel::<AuthRequest>(32);
 
-    let mut state = NLockState::new(display, auth_tx.clone());
+    let mut state = NLockState::new(config, display, auth_tx.clone());
 
     let mut event_queue = conn.new_event_queue();
     let qh = event_queue.handle();
@@ -82,6 +82,10 @@ async fn start() -> Result<()> {
     Ok(())
 }
 
+fn load_config() -> Result<NLockConfig> {
+    NLockRawConfig::load()?.finalize()
+}
+
 #[tokio::main()]
 async fn main() {
     tracing_subscriber::fmt()
@@ -92,8 +96,16 @@ async fn main() {
     let now = chrono::Local::now();
     debug!("nlock started at {}", now.to_rfc3339());
 
-    if let Err(e) = start().await {
-        error!("{:#?}", e);
+    match load_config() {
+        Ok(cfg) => {
+            if let Err(e) = start(cfg).await {
+                error!("{:#?}", e);
+            }
+        }
+        Err(e) => {
+            error!("Error loading configuration: {:#?}", e);
+            return;
+        }
     }
 
     let now = chrono::Local::now();

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
-use palette::Srgba;
+use palette::Srgb;
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
@@ -21,6 +21,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
+use crate::config::NLockConfig;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -28,6 +29,7 @@ use crate::{
 };
 
 pub struct NLockState {
+    pub config: NLockConfig,
     pub running: Arc<AtomicBool>,
     pub locked: bool,
     pub unlocked: bool,
@@ -43,15 +45,16 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub border_color: Arc<Mutex<Srgba<f32>>>,
+    pub border_color: Arc<Mutex<Srgb>>,
     pub epoll: Option<Epoll>,
     pub timers: Vec<(TimerFd, u64)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
 }
 
 impl NLockState {
-    pub fn new(display: wl_display::WlDisplay, auth_tx: mpsc::Sender<AuthRequest>) -> Self {
+    pub fn new(config: NLockConfig, display: wl_display::WlDisplay, auth_tx: mpsc::Sender<AuthRequest>) -> Self {
         Self {
+            config,
             running: Arc::new(AtomicBool::new(true)),
             locked: false,
             unlocked: false,
@@ -67,7 +70,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            border_color: Arc::new(Mutex::new(Srgba::new(0.0, 0.0, 0.0, 1.0))),
+            border_color: Arc::new(Mutex::new(Srgb::new(0.0, 0.0, 0.0))),
             epoll: None,
             timers: Vec::new(),
             auth_tx,
@@ -137,7 +140,6 @@ impl NLockState {
                     warn!("PAM authentication error: {e}");
 
                     let mut border_color = border_color.lock().unwrap();
-                    border_color.alpha = 1.0;
                     border_color.red = 1.0;
                     border_color.green = 0.0;
                     border_color.blue = 0.0;

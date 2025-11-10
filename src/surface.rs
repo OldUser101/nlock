@@ -2,7 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
-use palette::Srgba;
+use palette::Srgb;
 use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
@@ -12,7 +12,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
 
-use crate::{buffer::NLockBuffer, state::NLockState};
+use crate::{buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
 const DEFAULT_FONT_SIZE: f64 = 72.0;
@@ -79,9 +79,9 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
-    fn clear_surface(&self, context: &cairo::Context) -> Result<()> {
+    fn clear_surface(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
         context.save()?;
-        context.set_source_rgb(0.0, 0.0, 0.0);
+        context.set_source_rgb(config.background_color.red as f64, config.background_color.green as f64, config.background_color.blue as f64);
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -199,8 +199,9 @@ impl NLockSurface {
 
     pub fn render(
         &mut self,
+        config: &NLockConfig,
         password_len: usize,
-        border_color: Srgba,
+        border_color: Srgb,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -224,7 +225,7 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(border_color, password_len, context) {
+        if let Err(e) = self.render_frame(config, border_color, password_len, context) {
             warn!("Error while rendering: {e}");
         }
 
@@ -236,19 +237,19 @@ impl NLockSurface {
 
     fn render_frame(
         &self,
-        border_color: Srgba,
+        config: &NLockConfig,
+        border_color: Srgb,
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
         self.configure_cairo_font(context)?;
-        self.clear_surface(context)?;
+        self.clear_surface(config, context)?;
 
         context.save()?;
-        context.set_source_rgba(
+        context.set_source_rgb(
             border_color.red.into(),
             border_color.green.into(),
             border_color.blue.into(),
-            border_color.alpha.into(),
         );
         context.set_line_width(DEFAULT_LINE_WIDTH);
         context.rectangle(
@@ -322,7 +323,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
                 lock_surface.ack_configure(serial);
 
                 let border_color = state.border_color.lock().unwrap();
-                surface.render(state.password.len(), *border_color, shm, qh);
+                surface.render(&state.config, state.password.len(), *border_color, shm, qh);
             }
         }
     }

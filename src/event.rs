@@ -161,7 +161,7 @@ impl NLockState {
             && let Ok(border_color) = self.border_color.lock()
         {
             for i in 0..self.surfaces.len() {
-                self.surfaces[i].render(self.password.len(), *border_color, shm, &qh);
+                self.surfaces[i].render(&self.config, self.password.len(), *border_color, shm, &qh);
             }
 
             self.state_changed.store(false, Ordering::Relaxed);
