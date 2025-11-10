@@ -16,6 +16,11 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
+    - name: Install Dependencies
+      run: |
+        sudo apt -y update
+        sudo apt -y install \
+            llvm-dev libclang-dev clang
     - name: Build
       run: cargo build --verbose
     - name: Run tests
