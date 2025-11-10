@@ -17,11 +17,20 @@ use crate::{
 };
 
 use anyhow::{Result, bail};
+
+#[cfg_attr(debug_assertions, allow(unused_imports))]
+use nix::sys::prctl;
+
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 use wayland_client::Connection;
 
 async fn start() -> Result<()> {
+    // Prevent ptrace from attaching to nlock
+    // Only do this in release config
+    #[cfg(not(debug_assertions))]
+    prctl::set_dumpable(false)?;
+    
     let conn = Connection::connect_to_env()?;
     let display = conn.display();
 
