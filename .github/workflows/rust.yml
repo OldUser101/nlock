@@ -20,7 +20,7 @@ jobs:
       run: |
         sudo apt -y update
         sudo apt -y install \
-            llvm-dev libclang-dev clang libglib2.0-devel pkg-config
+            llvm-dev libclang-dev clang libglib2.0-dev pkg-config
     - name: Build
       run: cargo build --verbose
     - name: Run tests
