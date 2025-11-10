@@ -2,6 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
+use palette::Srgba;
 use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
@@ -16,42 +17,6 @@ use crate::{buffer::NLockBuffer, state::NLockState};
 const DEFAULT_DPI: f64 = 96.0;
 const DEFAULT_FONT_SIZE: f64 = 72.0;
 const DEFAULT_LINE_WIDTH: f64 = 25.0;
-
-#[derive(Copy, Clone, Debug)]
-pub struct ArgbColor {
-    pub a: f64,
-    pub r: f64,
-    pub g: f64,
-    pub b: f64,
-}
-
-impl Default for ArgbColor {
-    fn default() -> Self {
-        Self {
-            a: 1.0,
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-        }
-    }
-}
-
-#[derive(Copy, Clone, Debug)]
-pub struct RgbColor {
-    pub r: f64,
-    pub g: f64,
-    pub b: f64,
-}
-
-impl Default for RgbColor {
-    fn default() -> Self {
-        Self {
-            r: 0.0,
-            g: 0.0,
-            b: 0.0,
-        }
-    }
-}
 
 pub struct NLockSurface {
     pub created: bool,
@@ -235,7 +200,7 @@ impl NLockSurface {
     pub fn render(
         &mut self,
         password_len: usize,
-        border_color: ArgbColor,
+        border_color: Srgba,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -269,12 +234,22 @@ impl NLockSurface {
         surface.commit();
     }
 
-    fn render_frame(&self, border_color: ArgbColor,  password_len: usize, context: &cairo::Context) -> Result<()> {
+    fn render_frame(
+        &self,
+        border_color: Srgba,
+        password_len: usize,
+        context: &cairo::Context,
+    ) -> Result<()> {
         self.configure_cairo_font(context)?;
         self.clear_surface(context)?;
 
         context.save()?;
-        context.set_source_rgba(border_color.r, border_color.g, border_color.b, border_color.a);
+        context.set_source_rgba(
+            border_color.red.into(),
+            border_color.green.into(),
+            border_color.blue.into(),
+            border_color.alpha.into(),
+        );
         context.set_line_width(DEFAULT_LINE_WIDTH);
         context.rectangle(
             0.0,
