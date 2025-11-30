@@ -6,7 +6,7 @@ any compositor that correctly implements it.
 
 ## Usage
 
-See [the documentation](https://github.com/OldUser101/blob/main/doc/toc.md).
+See [the documentation](doc/toc.md).
 
 ## Building
 
@@ -42,4 +42,4 @@ Several other projects have been very helpful during development of nlock:
 ## License
 
 nlock is licensed under the GNU General Public License Version 3, or later.
-See [LICENSE](https://github.com/OldUser101/blob/main/LICENSE) for details.
+See [LICENSE](LICENSE) for details.
