@@ -15,7 +15,6 @@ use wayland_protocols::ext::session_lock::v1::client::{
 use crate::{buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
-const DEFAULT_FONT_SIZE: f64 = 72.0;
 const DEFAULT_LINE_WIDTH: f64 = 25.0;
 
 #[derive(Debug, Copy, Clone)]
@@ -161,7 +160,7 @@ impl NLockSurface {
         Ok(())
     }
 
-    fn configure_cairo_font(&self, context: &cairo::Context) -> Result<()> {
+    fn configure_cairo_font(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
         let mut fo = cairo::FontOptions::new()?;
         fo.set_hint_style(cairo::HintStyle::Full);
         fo.set_antialias(cairo::Antialias::Subpixel);
@@ -175,7 +174,7 @@ impl NLockSurface {
         );
 
         let dpi = self.dpi.unwrap_or(DEFAULT_DPI);
-        context.set_font_size((DEFAULT_FONT_SIZE / 72.0) * dpi);
+        context.set_font_size((config.font.size / 72.0) * dpi);
 
         Ok(())
     }
@@ -303,7 +302,7 @@ impl NLockSurface {
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
-        self.configure_cairo_font(context)?;
+        self.configure_cairo_font(config, context)?;
         self.clear_surface(config, context)?;
 
         context.save()?;

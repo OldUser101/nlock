@@ -19,9 +19,12 @@ const SYSTEM_CONFIG_DIR: &str = "/usr/share";
 pub struct NLockConfig {
     #[serde(default)]
     pub colors: NLockConfigColors,
+
+    #[serde(default)]
+    pub font: NLockConfigFont,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 pub struct NLockConfigColors {
     #[serde(default = "default_bg_color", rename = "background")]
     pub bg: Rgba,
@@ -30,12 +33,39 @@ pub struct NLockConfigColors {
     pub text: Rgba,
 }
 
+impl Default for NLockConfigColors {
+    fn default() -> Self {
+        Self {
+            bg: default_bg_color(),
+            text: default_text_color(),
+        }
+    }
+}
+
 fn default_bg_color() -> Rgba {
     Rgba::new(0.0, 0.0, 0.0, 1.0)
 }
 
 fn default_text_color() -> Rgba {
     Rgba::new(1.0, 1.0, 1.0, 1.0)
+}
+
+#[derive(Deserialize)]
+pub struct NLockConfigFont {
+    #[serde(default = "default_font_size")]
+    pub size: f64,
+}
+
+impl Default for NLockConfigFont {
+    fn default() -> Self {
+        Self {
+            size: default_font_size(),
+        }
+    }
+}
+
+fn default_font_size() -> f64 {
+    72.0f64
 }
 
 impl NLockConfig {
