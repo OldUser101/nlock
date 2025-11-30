@@ -185,9 +185,8 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) -> Option<usize> {
-        if self.width.is_none() || self.height.is_none() {
-            return None;
-        }
+        let width = self.width?;
+        let height = self.height?;
 
         let index = self
             .buffers
@@ -197,11 +196,14 @@ impl NLockSurface {
         let idx = match index {
             Some(i) => i,
             None => {
-                let width = self.width.unwrap() as i32;
-                let height = self.height.unwrap() as i32;
-
-                let mut buf =
-                    NLockBuffer::new(shm, width, height, wl_shm::Format::Argb8888, true, qh)?;
+                let mut buf = NLockBuffer::new(
+                    shm,
+                    width as i32,
+                    height as i32,
+                    wl_shm::Format::Argb8888,
+                    true,
+                    qh,
+                )?;
                 self.configure_cairo_init(&mut buf.context).ok()?;
 
                 self.buffers.push(buf);
