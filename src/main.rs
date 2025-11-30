@@ -36,7 +36,7 @@ async fn start(config: NLockConfig) -> Result<()> {
 
     let (auth_tx, auth_rx) = mpsc::channel::<AuthRequest>(32);
 
-    let mut state = NLockState::new(config, display, auth_tx.clone());
+    let mut state = NLockState::new(config, display, auth_tx.clone())?;
 
     let mut event_queue = conn.new_event_queue();
     let qh = event_queue.handle();

@@ -4,6 +4,8 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
+use anyhow::Result;
+use nix::sys::eventfd::EventFd;
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use palette::Srgb;
 use tokio::sync::{mpsc, oneshot};
@@ -49,11 +51,16 @@ pub struct NLockState {
     pub epoll: Option<Epoll>,
     pub timers: Vec<(TimerFd, u64)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
+    pub state_ev: Arc<EventFd>,
 }
 
 impl NLockState {
-    pub fn new(config: NLockConfig, display: wl_display::WlDisplay, auth_tx: mpsc::Sender<AuthRequest>) -> Self {
-        Self {
+    pub fn new(
+        config: NLockConfig,
+        display: wl_display::WlDisplay,
+        auth_tx: mpsc::Sender<AuthRequest>,
+    ) -> Result<Self> {
+        Ok(Self {
             config,
             running: Arc::new(AtomicBool::new(true)),
             locked: false,
@@ -74,7 +81,8 @@ impl NLockState {
             epoll: None,
             timers: Vec::new(),
             auth_tx,
-        }
+            state_ev: Arc::new(EventFd::new()?),
+        })
     }
 
     pub fn get_registry(&mut self, qh: &QueueHandle<Self>) {
@@ -120,6 +128,7 @@ impl NLockState {
         let running = self.running.clone();
         let border_color = self.border_color.clone();
         let state_changed = self.state_changed.clone();
+        let state_ev = self.state_ev.clone();
 
         tokio::spawn(async move {
             let (resp_tx, resp_rx) = oneshot::channel();
@@ -145,6 +154,7 @@ impl NLockState {
                     border_color.blue = 0.0;
 
                     state_changed.store(true, Ordering::Relaxed);
+                    let _ = state_ev.write(1);
                 }
                 Err(e) => warn!("Error receiving from auth thread: {e}"),
             }

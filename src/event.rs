@@ -4,6 +4,7 @@
 use anyhow::{Result, anyhow};
 use nix::{
     errno::Errno,
+    poll::PollTimeout,
     sys::{
         epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
         timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
@@ -20,6 +21,7 @@ use crate::state::NLockState;
 pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
+    StateChanged = 2,
 }
 
 impl EventType {
@@ -27,6 +29,7 @@ impl EventType {
         match value {
             0 => Ok(Self::Wayland),
             1 => Ok(Self::KeyboardRepeat),
+            2 => Ok(Self::StateChanged),
 
             _ => Err(anyhow!("Invalid EventType value")),
         }
@@ -84,9 +87,19 @@ impl NLockState {
         Ok(())
     }
 
+    fn setup_epoll(&mut self) -> Result<()> {
+        let epoll = Epoll::new(EpollCreateFlags::empty())?;
+
+        let state_event = EpollEvent::new(EpollFlags::EPOLLIN, EventType::StateChanged as u64);
+        epoll.add(self.state_ev.clone(), state_event)?;
+
+        self.epoll = Some(epoll);
+        Ok(())
+    }
+
     pub fn event_loop_cycle(&mut self, event_queue: &mut EventQueue<NLockState>) -> Result<()> {
         if self.epoll.is_none() {
-            self.epoll = Some(Epoll::new(EpollCreateFlags::empty())?);
+            self.setup_epoll()?;
         }
 
         let mut events = [EpollEvent::empty(); 64];
@@ -113,7 +126,7 @@ impl NLockState {
             };
 
             // This should timeout around 60 times per second
-            match epoll.wait(&mut events, 17u16) {
+            match epoll.wait(&mut events, PollTimeout::NONE) {
                 Ok(n) => n,
                 Err(Errno::EINTR) => 0,
                 Err(e) => return Err(anyhow!("Error during epoll: {e}")),
@@ -144,6 +157,11 @@ impl NLockState {
                             }
                         }
                     }
+                }
+                EventType::StateChanged => {
+                    // Read whatever is stored in there, we don't care what
+                    let mut buf = [0u8; std::mem::size_of::<u64>()];
+                    let _ = read(self.state_ev.clone(), &mut buf)?;
                 }
             }
         }
