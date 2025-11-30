@@ -136,10 +136,10 @@ impl NLockSurface {
     fn clear_surface(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
         context.save()?;
         context.set_source_rgba(
-            config.background_color.r,
-            config.background_color.g,
-            config.background_color.b,
-            config.background_color.a,
+            config.colors.bg.r,
+            config.colors.bg.g,
+            config.colors.bg.b,
+            config.colors.bg.a,
         );
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
@@ -337,7 +337,12 @@ impl NLockSurface {
         let text_x = box_x + (box_w - ext.width()) / 2.0 - ext.x_bearing();
         let text_y = box_y + (box_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
 
-        context.set_source_rgb(1.0, 1.0, 1.0);
+        context.set_source_rgba(
+            config.colors.text.r,
+            config.colors.text.g,
+            config.colors.text.b,
+            config.colors.text.a,
+        );
         context.move_to(text_x, text_y);
         context.show_text(text.as_str())?;
         context.restore()?;

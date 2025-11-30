@@ -17,8 +17,25 @@ const SYSTEM_CONFIG_DIR: &str = "/usr/share";
 
 #[derive(Default, Deserialize)]
 pub struct NLockConfig {
-    #[serde(default, rename = "backgroundColor")]
-    pub background_color: Rgba,
+    #[serde(default)]
+    pub colors: NLockConfigColors,
+}
+
+#[derive(Default, Deserialize)]
+pub struct NLockConfigColors {
+    #[serde(default = "default_bg_color", rename = "background")]
+    pub bg: Rgba,
+
+    #[serde(default = "default_text_color", rename = "text")]
+    pub text: Rgba,
+}
+
+fn default_bg_color() -> Rgba {
+    Rgba::new(0.0, 0.0, 0.0, 1.0)
+}
+
+fn default_text_color() -> Rgba {
+    Rgba::new(1.0, 1.0, 1.0, 1.0)
 }
 
 impl NLockConfig {
