@@ -9,7 +9,7 @@ use dirs::config_dir;
 use serde::Deserialize;
 use tracing::debug;
 
-use crate::surface::Rgba;
+use crate::surface::{FontSlant, FontWeight, Rgba};
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
@@ -54,18 +54,42 @@ fn default_text_color() -> Rgba {
 pub struct NLockConfigFont {
     #[serde(default = "default_font_size")]
     pub size: f64,
+
+    #[serde(default = "default_font_family")]
+    pub family: String,
+
+    #[serde(default = "default_font_slant")]
+    pub slant: FontSlant,
+
+    #[serde(default = "default_font_weight")]
+    pub weight: FontWeight,
 }
 
 impl Default for NLockConfigFont {
     fn default() -> Self {
         Self {
             size: default_font_size(),
+            family: default_font_family(),
+            slant: default_font_slant(),
+            weight: default_font_weight(),
         }
     }
 }
 
 fn default_font_size() -> f64 {
     72.0f64
+}
+
+fn default_font_family() -> String {
+    "".to_string()
+}
+
+fn default_font_slant() -> FontSlant {
+    FontSlant::Normal
+}
+
+fn default_font_weight() -> FontWeight {
+    FontWeight::Normal
 }
 
 impl NLockConfig {

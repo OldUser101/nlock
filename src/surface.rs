@@ -71,6 +71,40 @@ impl<'de> Deserialize<'de> for Rgba {
     }
 }
 
+#[derive(Debug, Deserialize, Copy, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum FontSlant {
+    Normal,
+    Italic,
+    Oblique,
+}
+
+impl From<FontSlant> for cairo::FontSlant {
+    fn from(value: FontSlant) -> Self {
+        match value {
+            FontSlant::Normal => Self::Normal,
+            FontSlant::Italic => Self::Italic,
+            FontSlant::Oblique => Self::Oblique,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize, Copy, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum FontWeight {
+    Normal,
+    Bold,
+}
+
+impl From<FontWeight> for cairo::FontWeight {
+    fn from(value: FontWeight) -> Self {
+        match value {
+            FontWeight::Normal => Self::Normal,
+            FontWeight::Bold => Self::Bold,
+        }
+    }
+}
+
 pub struct NLockSurface {
     pub created: bool,
     pub index: usize,
@@ -168,9 +202,9 @@ impl NLockSurface {
 
         context.set_font_options(&fo);
         context.select_font_face(
-            "monospace",
-            cairo::FontSlant::Normal,
-            cairo::FontWeight::Bold,
+            &config.font.family,
+            cairo::FontSlant::from(config.font.slant),
+            cairo::FontWeight::from(config.font.weight),
         );
 
         let dpi = self.dpi.unwrap_or(DEFAULT_DPI);
