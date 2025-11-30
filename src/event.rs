@@ -125,7 +125,6 @@ impl NLockState {
                 epoll,
             };
 
-            // This should timeout around 60 times per second
             match epoll.wait(&mut events, PollTimeout::NONE) {
                 Ok(n) => n,
                 Err(Errno::EINTR) => 0,
