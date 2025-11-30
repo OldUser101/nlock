@@ -77,7 +77,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            border_color: Arc::new(Mutex::new(Rgba::default())),
+            border_color: Arc::new(Mutex::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
             epoll: None,
             timers: Vec::new(),
             auth_tx,
@@ -152,6 +152,7 @@ impl NLockState {
                     border_color.r = 1.0;
                     border_color.g = 0.0;
                     border_color.b = 0.0;
+                    border_color.a = 1.0;
 
                     state_changed.store(true, Ordering::Relaxed);
                     let _ = state_ev.write(1);
