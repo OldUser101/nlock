@@ -1,41 +1,29 @@
 // SPDX-License-Idenifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use std::{path::PathBuf, str::FromStr};
+use std::path::PathBuf;
 
 use anyhow::{Result, anyhow};
-use config::{Config, ConfigBuilder, File, FileFormat, builder::DefaultState};
+use config::{Config, File, FileFormat};
 use dirs::config_dir;
-use palette::Srgb;
 use serde::Deserialize;
 use tracing::debug;
+
+use crate::surface::Rgba;
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
 const SYSTEM_CONFIG_DIR: &str = "/usr/share";
 
-#[derive(Deserialize)]
-pub struct NLockRawConfig {
-    #[serde(rename = "backgroundColor")]
-    pub background_color: Option<String>,
+#[derive(Default, Deserialize)]
+pub struct NLockConfig {
+    #[serde(default, rename = "backgroundColor")]
+    pub background_color: Rgba,
 }
 
-impl NLockRawConfig {
-    pub fn set_overrides(
-        &self,
-        builder: ConfigBuilder<DefaultState>,
-    ) -> Result<ConfigBuilder<DefaultState>> {
-        let mut builder = builder;
-
-        if self.background_color.is_some() {
-            builder = builder.set_override("backgroundColor", self.background_color.clone())?;
-        }
-
-        Ok(builder)
-    }
-
+impl NLockConfig {
     pub fn load() -> Result<Self> {
-        let mut builder = Config::builder().set_default("backgroundColor", "#000000")?;
+        let mut builder = Config::builder();
 
         let mut system_config = PathBuf::from(SYSTEM_CONFIG_DIR);
         system_config.push(CONFIG_DIR_NAME);
@@ -65,19 +53,4 @@ impl NLockRawConfig {
 
         Ok(config.try_deserialize::<Self>()?)
     }
-
-    pub fn finalize(&self) -> Result<NLockConfig> {
-        Ok(NLockConfig {
-            background_color: Srgb::from_str(
-                self.background_color
-                    .as_ref()
-                    .ok_or(anyhow!("backgroundColor required, but not provided"))?,
-            )?
-            .into(),
-        })
-    }
-}
-
-pub struct NLockConfig {
-    pub background_color: Srgb,
 }

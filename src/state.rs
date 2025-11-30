@@ -7,7 +7,6 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use nix::sys::eventfd::EventFd;
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
-use palette::Srgb;
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
@@ -24,6 +23,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
 use zeroize::Zeroizing;
 
 use crate::config::NLockConfig;
+use crate::surface::Rgba;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -47,7 +47,7 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub border_color: Arc<Mutex<Srgb>>,
+    pub border_color: Arc<Mutex<Rgba>>,
     pub epoll: Option<Epoll>,
     pub timers: Vec<(TimerFd, u64)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
@@ -77,7 +77,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            border_color: Arc::new(Mutex::new(Srgb::new(0.0, 0.0, 0.0))),
+            border_color: Arc::new(Mutex::new(Rgba::default())),
             epoll: None,
             timers: Vec::new(),
             auth_tx,
@@ -149,9 +149,9 @@ impl NLockState {
                     warn!("PAM authentication error: {e}");
 
                     let mut border_color = border_color.lock().unwrap();
-                    border_color.red = 1.0;
-                    border_color.green = 0.0;
-                    border_color.blue = 0.0;
+                    border_color.r = 1.0;
+                    border_color.g = 0.0;
+                    border_color.b = 0.0;
 
                     state_changed.store(true, Ordering::Relaxed);
                     let _ = state_ev.write(1);

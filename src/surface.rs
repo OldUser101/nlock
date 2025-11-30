@@ -2,7 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
-use palette::Srgb;
+use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
@@ -17,6 +17,60 @@ use crate::{buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 const DEFAULT_DPI: f64 = 96.0;
 const DEFAULT_FONT_SIZE: f64 = 72.0;
 const DEFAULT_LINE_WIDTH: f64 = 25.0;
+
+#[derive(Debug, Copy, Clone)]
+pub struct Rgba {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+    pub a: f64,
+}
+
+impl Rgba {
+    pub fn new(r: f64, g: f64, b: f64, a: f64) -> Self {
+        Self { r, g, b, a }
+    }
+}
+
+impl Default for Rgba {
+    fn default() -> Self {
+        Self::new(0.0, 0.0, 0.0, 1.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Rgba {
+    fn deserialize<D>(d: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(d)?;
+        let s = s.strip_prefix('#').ok_or(de::Error::custom("missing #"))?;
+        let argb = match s.len() {
+            6 => {
+                let r =
+                    u8::from_str_radix(&s[0..2], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                let g =
+                    u8::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                let b =
+                    u8::from_str_radix(&s[4..6], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                Rgba { r, g, b, a: 1.0 }
+            }
+            8 => {
+                let r =
+                    u8::from_str_radix(&s[0..2], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                let g =
+                    u8::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                let b =
+                    u8::from_str_radix(&s[4..6], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                let a =
+                    u8::from_str_radix(&s[6..8], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
+                Rgba { r, g, b, a }
+            }
+            _ => return Err(de::Error::custom("expected #RRGGBBAA or #RRGGBB format")),
+        };
+        Ok(argb)
+    }
+}
 
 pub struct NLockSurface {
     pub created: bool,
@@ -81,7 +135,12 @@ impl NLockSurface {
 
     fn clear_surface(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
         context.save()?;
-        context.set_source_rgb(config.background_color.red as f64, config.background_color.green as f64, config.background_color.blue as f64);
+        context.set_source_rgba(
+            config.background_color.r,
+            config.background_color.g,
+            config.background_color.b,
+            config.background_color.a,
+        );
         context.set_operator(cairo::Operator::Source);
         context.paint()?;
         context.restore()?;
@@ -201,7 +260,7 @@ impl NLockSurface {
         &mut self,
         config: &NLockConfig,
         password_len: usize,
-        border_color: Srgb,
+        border_color: Rgba,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -238,7 +297,7 @@ impl NLockSurface {
     fn render_frame(
         &self,
         config: &NLockConfig,
-        border_color: Srgb,
+        border_color: Rgba,
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
@@ -246,10 +305,11 @@ impl NLockSurface {
         self.clear_surface(config, context)?;
 
         context.save()?;
-        context.set_source_rgb(
-            border_color.red.into(),
-            border_color.green.into(),
-            border_color.blue.into(),
+        context.set_source_rgba(
+            border_color.r,
+            border_color.g,
+            border_color.b,
+            border_color.a,
         );
         context.set_line_width(DEFAULT_LINE_WIDTH);
         context.rectangle(
@@ -309,22 +369,21 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             width,
             height,
         } = event
+            && let Some(shm) = &state.shm
         {
-            if let Some(shm) = &state.shm {
-                let surface = &mut state.surfaces[*data];
-                surface.width = Some(width);
-                surface.height = Some(height);
+            let surface = &mut state.surfaces[*data];
+            surface.width = Some(width);
+            surface.height = Some(height);
 
-                if let Err(e) = surface.calculate_dpi() {
-                    warn!("Failed to set surface DPI: {e}, using default {DEFAULT_DPI}");
-                    surface.dpi = Some(DEFAULT_DPI);
-                }
-
-                lock_surface.ack_configure(serial);
-
-                let border_color = state.border_color.lock().unwrap();
-                surface.render(&state.config, state.password.len(), *border_color, shm, qh);
+            if let Err(e) = surface.calculate_dpi() {
+                warn!("Failed to set surface DPI: {e}, using default {DEFAULT_DPI}");
+                surface.dpi = Some(DEFAULT_DPI);
             }
+
+            lock_surface.ack_configure(serial);
+
+            let border_color = state.border_color.lock().unwrap();
+            surface.render(&state.config, state.password.len(), *border_color, shm, qh);
         }
     }
 }

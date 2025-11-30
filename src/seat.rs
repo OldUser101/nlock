@@ -80,11 +80,7 @@ impl NLockState {
         Ok(())
     }
 
-    pub fn process_key(
-        &mut self,
-        keysym: xkb::Keysym,
-        codepoint: u32,
-    ) {
+    pub fn process_key(&mut self, keysym: xkb::Keysym, codepoint: u32) {
         match keysym {
             xkb::Keysym::KP_Enter | xkb::Keysym::Return => {
                 self.submit_password();

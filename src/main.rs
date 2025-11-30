@@ -13,7 +13,9 @@ pub mod util;
 use std::sync::atomic::Ordering;
 
 use crate::{
-    auth::{run_auth_loop, AuthRequest}, config::{NLockConfig, NLockRawConfig}, state::NLockState
+    auth::{AuthRequest, run_auth_loop},
+    config::NLockConfig,
+    state::NLockState,
 };
 
 use anyhow::{Result, bail};
@@ -82,10 +84,6 @@ async fn start(config: NLockConfig) -> Result<()> {
     Ok(())
 }
 
-fn load_config() -> Result<NLockConfig> {
-    NLockRawConfig::load()?.finalize()
-}
-
 #[tokio::main()]
 async fn main() {
     tracing_subscriber::fmt()
@@ -96,7 +94,7 @@ async fn main() {
     let now = chrono::Local::now();
     debug!("nlock started at {}", now.to_rfc3339());
 
-    match load_config() {
+    match NLockConfig::load() {
         Ok(cfg) => {
             if let Err(e) = start(cfg).await {
                 error!("{:#?}", e);
