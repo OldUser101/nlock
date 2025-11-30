@@ -22,6 +22,9 @@ pub struct NLockConfig {
 
     #[serde(default)]
     pub font: NLockConfigFont,
+
+    #[serde(default)]
+    pub input: NLockConfigInput,
 }
 
 #[derive(Deserialize)]
@@ -90,6 +93,24 @@ fn default_font_slant() -> FontSlant {
 
 fn default_font_weight() -> FontWeight {
     FontWeight::Normal
+}
+
+#[derive(Deserialize)]
+pub struct NLockConfigInput {
+    #[serde(default = "default_mask_char", rename = "maskChar")]
+    pub mask_char: String,
+}
+
+impl Default for NLockConfigInput {
+    fn default() -> Self {
+        Self {
+            mask_char: default_mask_char(),
+        }
+    }
+}
+
+fn default_mask_char() -> String {
+    "*".to_string()
 }
 
 impl NLockConfig {

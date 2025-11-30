@@ -367,7 +367,7 @@ impl NLockSurface {
         context.rectangle(box_x, box_y, box_w, box_h);
         context.clip();
 
-        let text = "*".repeat(password_len);
+        let text = config.input.mask_char.repeat(password_len);
         let ext = context.text_extents(text.as_str())?;
         let text_x = box_x + (box_w - ext.width()) / 2.0 - ext.x_bearing();
         let text_y = box_y + (box_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
