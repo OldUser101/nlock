@@ -13,7 +13,7 @@ use crate::surface::{FontSlant, FontWeight, Rgba};
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
-const SYSTEM_CONFIG_DIR: &str = "/usr/share";
+const SYSTEM_CONFIG_DIR: &str = "/etc";
 
 #[derive(Default, Deserialize)]
 pub struct NLockConfig {

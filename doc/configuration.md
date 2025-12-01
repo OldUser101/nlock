@@ -2,7 +2,7 @@
 
 nlock loads configuration files from two locations:
 
-- `/usr/share/nlock/nlock.toml`, system-wide configuration
+- `/etc/nlock/nlock.toml`, system-wide configuration
 - `~/.config/nlock/nlock.toml`, user configuration
 
 Configuration files are TOML formatted. The following example demonstrates all
