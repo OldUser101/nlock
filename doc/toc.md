@@ -6,4 +6,4 @@ may not be completely up to date.
 ## Table of Contents
 
 - [Command Line](cli.md)
-- [Configuration](configuration.md)
+- [Configuration](config.md)
