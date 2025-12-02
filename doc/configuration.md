@@ -34,9 +34,10 @@ weight = "normal"   # font weight, either "normal", or "bold"
 # Input section configures the password input box.
 [input]
 maskChar = "*"      # character displayed in place of password characters
-width = 0.5         # Width of the input box, relative to display width
-paddingX = 0.05     # Input box horizontal padding, relative to display width
-paddingY = 0.05     # Input box vertical padding, relative to display height
+width = 0.5         # width of the input box, relative to display width
+paddingX = 0.05     # input box horizontal padding, relative to display width
+paddingY = 0.05     # input box vertical padding, relative to display height
+radius = 0.0        # radius of input box corners, relative to total box height
 ```
 
 Further configuration values are likely to be added in the future. Hopefully,
