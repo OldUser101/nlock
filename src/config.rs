@@ -116,6 +116,9 @@ pub struct NLockConfigInput {
 
     #[serde(default = "default_input_padding", rename = "paddingY")]
     pub padding_y: f64,
+
+    #[serde(default = "default_input_radius")]
+    pub radius: f64,
 }
 
 impl Default for NLockConfigInput {
@@ -125,6 +128,7 @@ impl Default for NLockConfigInput {
             width: default_input_width(),
             padding_x: default_input_padding(),
             padding_y: default_input_padding(),
+            radius: default_input_radius(),
         }
     }
 }
@@ -139,6 +143,10 @@ fn default_input_width() -> f64 {
 
 fn default_input_padding() -> f64 {
     0.05f64
+}
+
+fn default_input_radius() -> f64 {
+    0.0f64
 }
 
 impl NLockConfig {

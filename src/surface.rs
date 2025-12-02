@@ -291,6 +291,21 @@ impl NLockSurface {
         }
     }
 
+    fn draw_rounded_rect(context: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
+        context.new_sub_path();
+        context.arc(x + w - r, y + r, r, -90f64.to_radians(), 0f64.to_radians());
+        context.arc(
+            x + w - r,
+            y + h - r,
+            r,
+            0f64.to_radians(),
+            90f64.to_radians(),
+        );
+        context.arc(x + r, y + h - r, r, 90f64.to_radians(), 180f64.to_radians());
+        context.arc(x + r, y + r, r, 180f64.to_radians(), 270f64.to_radians());
+        context.close_path();
+    }
+
     pub fn render(
         &mut self,
         config: &NLockConfig,
@@ -373,7 +388,15 @@ impl NLockSurface {
         context.save()?;
 
         // Draw the outer rectangle, including padding
-        context.rectangle(outer_x, outer_y, outer_w, outer_h);
+        // Outer rectangle should have rounded corners
+        Self::draw_rounded_rect(
+            context,
+            outer_x,
+            outer_y,
+            outer_w,
+            outer_h,
+            config.input.radius * outer_h, // radius is relative, Cairo requires absolute
+        );
         context.clip();
         context.set_source_rgba(
             config.colors.input_bg.r,
