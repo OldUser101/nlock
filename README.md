@@ -16,7 +16,7 @@ compile with the latest stable Rust, I haven't tested older versions.
 In addition, you'll need development libraries for the following, which can
 probably be installed via your system package manager:
 
-- CLang
+- Clang
 - GLib
 - PAM
 - Cairo
