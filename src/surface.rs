@@ -397,14 +397,22 @@ impl NLockSurface {
             outer_h,
             config.input.radius * outer_h, // radius is relative, Cairo requires absolute
         );
-        context.clip();
         context.set_source_rgba(
             config.colors.input_bg.r,
             config.colors.input_bg.g,
             config.colors.input_bg.b,
             config.colors.input_bg.a,
         );
-        context.paint()?;
+        context.fill_preserve()?;
+        context.set_source_rgba(
+            config.colors.input_border.r,
+            config.colors.input_border.g,
+            config.colors.input_border.b,
+            config.colors.input_border.a,
+        );
+        context.set_line_width(config.input.border);
+        context.stroke_preserve()?;
+        context.clip();
 
         // Clip text to the inner rectangle
         context.rectangle(inner_x, inner_y, inner_w, inner_h);

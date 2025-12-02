@@ -18,6 +18,7 @@ the available configuration options (this might not be up-to-date).
 background = "#000000FF"        # background color, same as "#000000"
 text = "#FFFFFFFF"              # text color, same as "#FFFFFF"
 inputBackground = "#000000FF"   # input box background color
+inputBorder = "#000000FF"       # input box border color
 
 # Font section configures text display.
 [font]
@@ -38,6 +39,7 @@ width = 0.5         # width of the input box, relative to display width
 paddingX = 0.05     # input box horizontal padding, relative to display width
 paddingY = 0.05     # input box vertical padding, relative to display height
 radius = 0.0        # radius of input box corners, relative to total box height
+border = 0.0        # width of input box border, absolute, typically pixels
 ```
 
 Further configuration values are likely to be added in the future. Hopefully,

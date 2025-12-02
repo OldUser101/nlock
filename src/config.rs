@@ -37,6 +37,9 @@ pub struct NLockConfigColors {
 
     #[serde(default = "default_input_bg_color", rename = "inputBackground")]
     pub input_bg: Rgba,
+
+    #[serde(default = "default_input_border_color", rename = "inputBorder")]
+    pub input_border: Rgba,
 }
 
 impl Default for NLockConfigColors {
@@ -45,6 +48,7 @@ impl Default for NLockConfigColors {
             bg: default_bg_color(),
             text: default_text_color(),
             input_bg: default_input_bg_color(),
+            input_border: default_input_border_color(),
         }
     }
 }
@@ -58,6 +62,10 @@ fn default_text_color() -> Rgba {
 }
 
 fn default_input_bg_color() -> Rgba {
+    Rgba::new(0.0, 0.0, 0.0, 1.0)
+}
+
+fn default_input_border_color() -> Rgba {
     Rgba::new(0.0, 0.0, 0.0, 1.0)
 }
 
@@ -119,6 +127,9 @@ pub struct NLockConfigInput {
 
     #[serde(default = "default_input_radius")]
     pub radius: f64,
+
+    #[serde(default = "default_input_border")]
+    pub border: f64,
 }
 
 impl Default for NLockConfigInput {
@@ -129,6 +140,7 @@ impl Default for NLockConfigInput {
             padding_x: default_input_padding(),
             padding_y: default_input_padding(),
             radius: default_input_radius(),
+            border: default_input_border(),
         }
     }
 }
@@ -146,6 +158,10 @@ fn default_input_padding() -> f64 {
 }
 
 fn default_input_radius() -> f64 {
+    0.0f64
+}
+
+fn default_input_border() -> f64 {
     0.0f64
 }
 
