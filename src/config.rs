@@ -34,6 +34,9 @@ pub struct NLockConfigColors {
 
     #[serde(default = "default_text_color", rename = "text")]
     pub text: Rgba,
+
+    #[serde(default = "default_input_bg_color", rename = "inputBackground")]
+    pub input_bg: Rgba,
 }
 
 impl Default for NLockConfigColors {
@@ -41,6 +44,7 @@ impl Default for NLockConfigColors {
         Self {
             bg: default_bg_color(),
             text: default_text_color(),
+            input_bg: default_input_bg_color(),
         }
     }
 }
@@ -51,6 +55,10 @@ fn default_bg_color() -> Rgba {
 
 fn default_text_color() -> Rgba {
     Rgba::new(1.0, 1.0, 1.0, 1.0)
+}
+
+fn default_input_bg_color() -> Rgba {
+    Rgba::new(0.0, 0.0, 0.0, 1.0)
 }
 
 #[derive(Deserialize)]
@@ -99,18 +107,38 @@ fn default_font_weight() -> FontWeight {
 pub struct NLockConfigInput {
     #[serde(default = "default_mask_char", rename = "maskChar")]
     pub mask_char: String,
+
+    #[serde(default = "default_input_width")]
+    pub width: f64,
+
+    #[serde(default = "default_input_padding", rename = "paddingX")]
+    pub padding_x: f64,
+
+    #[serde(default = "default_input_padding", rename = "paddingY")]
+    pub padding_y: f64,
 }
 
 impl Default for NLockConfigInput {
     fn default() -> Self {
         Self {
             mask_char: default_mask_char(),
+            width: default_input_width(),
+            padding_x: default_input_padding(),
+            padding_y: default_input_padding(),
         }
     }
 }
 
 fn default_mask_char() -> String {
     "*".to_string()
+}
+
+fn default_input_width() -> f64 {
+    0.5f64
+}
+
+fn default_input_padding() -> f64 {
+    0.05f64
 }
 
 impl NLockConfig {

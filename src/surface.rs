@@ -336,9 +336,13 @@ impl NLockSurface {
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
+        let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
+        let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
+
         self.configure_cairo_font(config, context)?;
         self.clear_surface(config, context)?;
 
+        // Draw border colour
         context.save()?;
         context.set_source_rgba(
             border_color.r,
@@ -347,31 +351,48 @@ impl NLockSurface {
             border_color.a,
         );
         context.set_line_width(DEFAULT_LINE_WIDTH);
-        context.rectangle(
-            0.0,
-            0.0,
-            self.width.unwrap() as f64,
-            self.height.unwrap() as f64,
-        );
+        context.rectangle(0.0, 0.0, width, height);
         context.stroke()?;
         context.restore()?;
 
         let fe = context.font_extents()?;
 
-        let box_h = fe.height() * 1.5;
-        let box_w = self.width.unwrap() as f64 * 0.5;
-        let box_x = (self.width.unwrap() as f64 - box_w) / 2.0;
-        let box_y = (self.height.unwrap() as f64 - box_h) / 2.0;
+        let padding_x = config.input.padding_x * width;
+        let padding_y = config.input.padding_y * height;
+
+        let inner_h = fe.height();
+        let inner_w = width * config.input.width;
+        let inner_x = (width - inner_w) / 2.0;
+        let inner_y = (height - inner_h) / 2.0;
+
+        let outer_h = inner_h + padding_y;
+        let outer_w = inner_w + padding_x;
+        let outer_x = (width - outer_w) / 2.0;
+        let outer_y = (height - outer_h) / 2.0;
 
         context.save()?;
-        context.rectangle(box_x, box_y, box_w, box_h);
+
+        // Draw the outer rectangle, including padding
+        context.rectangle(outer_x, outer_y, outer_w, outer_h);
+        context.clip();
+        context.set_source_rgba(
+            config.colors.input_bg.r,
+            config.colors.input_bg.g,
+            config.colors.input_bg.b,
+            config.colors.input_bg.a,
+        );
+        context.paint()?;
+
+        // Clip text to the inner rectangle
+        context.rectangle(inner_x, inner_y, inner_w, inner_h);
         context.clip();
 
         let text = config.input.mask_char.repeat(password_len);
         let ext = context.text_extents(text.as_str())?;
-        let text_x = box_x + (box_w - ext.width()) / 2.0 - ext.x_bearing();
-        let text_y = box_y + (box_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
+        let text_x = inner_x + (inner_w - ext.width()) / 2.0 - ext.x_bearing();
+        let text_y = inner_y + (inner_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
 
+        // Actually draw the text
         context.set_source_rgba(
             config.colors.text.r,
             config.colors.text.g,
@@ -380,6 +401,7 @@ impl NLockSurface {
         );
         context.move_to(text_x, text_y);
         context.show_text(text.as_str())?;
+
         context.restore()?;
 
         Ok(())

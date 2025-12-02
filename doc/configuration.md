@@ -15,8 +15,9 @@ the available configuration options (this might not be up-to-date).
 [colors]
 # Colors are in either #RRGGBBAA or #RRGGBB format,
 # both #RRGGBBAA in this case.
-background = "#000000FF"    # background color, same as "#000000"
-text = "#FFFFFFFF"          # text color, same as "#FFFFFF"
+background = "#000000FF"        # background color, same as "#000000"
+text = "#FFFFFFFF"              # text color, same as "#FFFFFF"
+inputBackground = "#000000FF"   # input box background color
 
 # Font section configures text display.
 [font]
@@ -33,6 +34,9 @@ weight = "normal"   # font weight, either "normal", or "bold"
 # Input section configures the password input box.
 [input]
 maskChar = "*"      # character displayed in place of password characters
+width = 0.5         # Width of the input box, relative to display width
+paddingX = 0.05     # Input box horizontal padding, relative to display width
+paddingY = 0.05     # Input box vertical padding, relative to display height
 ```
 
 Further configuration values are likely to be added in the future. Hopefully,
