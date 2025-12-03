@@ -234,18 +234,26 @@ fn default_frame_radius() -> f64 {
 pub struct NLockConfigGeneral {
     #[serde(default = "default_pwd_allow_empty", rename = "allowEmptyPassword")]
     pub pwd_allow_empty: bool,
+
+    #[serde(default = "default_hide_cursor", rename = "hideCursor")]
+    pub hide_cursor: bool,
 }
 
 impl Default for NLockConfigGeneral {
     fn default() -> Self {
         Self {
             pwd_allow_empty: default_pwd_allow_empty(),
+            hide_cursor: default_hide_cursor(),
         }
     }
 }
 
 fn default_pwd_allow_empty() -> bool {
     false
+}
+
+fn default_hide_cursor() -> bool {
+    true
 }
 
 impl NLockConfig {

@@ -14,6 +14,7 @@ the available configuration options (this might not be up-to-date).
 # General configuration options
 [general]
 allowEmptyPassword = false      # allow a blank password to be validated
+hideCursor = true               # hide the mouse cursor
 
 # Colors section configures, well, colors.
 [colors]

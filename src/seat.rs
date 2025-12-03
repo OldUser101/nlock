@@ -228,7 +228,7 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for NLockState {
 
 impl Dispatch<wl_pointer::WlPointer, ()> for NLockState {
     fn event(
-        _: &mut Self,
+        state: &mut Self,
         pointer: &wl_pointer::WlPointer,
         event: <wl_pointer::WlPointer as wayland_client::Proxy>::Event,
         _: &(),
@@ -241,6 +241,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for NLockState {
             surface_x: _,
             surface_y: _,
         } = event
+            && state.config.general.hide_cursor
         {
             pointer.set_cursor(serial, None, 0, 0);
         }
