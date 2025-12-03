@@ -390,7 +390,19 @@ impl NLockSurface {
         context.save()?;
         self.set_frame_border_color(config, context, auth_state);
         context.set_line_width(config.frame.border);
-        context.rectangle(0.0, 0.0, width, height);
+
+        let frame_offset = config.frame.border / 2.0;
+        let frame_w = width - (frame_offset * 2.0);
+        let frame_h = height - (frame_offset * 2.0);
+
+        Self::draw_rounded_rect(
+            context,
+            frame_offset,
+            frame_offset,
+            frame_w,
+            frame_h,
+            config.frame.radius,
+        );
         context.stroke()?;
         context.restore()?;
 
