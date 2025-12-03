@@ -406,6 +406,11 @@ impl NLockSurface {
         context.stroke()?;
         context.restore()?;
 
+        // Skip drawing input box if the password is empty and config flag set
+        if password_len == 0 && config.input.hide_when_empty {
+            return Ok(());
+        }
+
         let fe = context.font_extents()?;
 
         let padding_x = config.input.padding_x * width;

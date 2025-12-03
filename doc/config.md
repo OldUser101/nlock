@@ -49,6 +49,8 @@ paddingY = 0.05     # input box vertical padding, relative to display height
 radius = 0.0        # radius of input box corners, relative to total box height
 border = 0.0        # width of input box border, absolute, typically pixels
 
+hideWhenEmpty = false   # hide the input box if password is empty
+
 # Frame section configures everything around the input box.
 [frame]
 border = 25.0   # width of frame border, absolute units, typically pixels
