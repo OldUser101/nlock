@@ -416,9 +416,8 @@ impl NLockSurface {
         let inner_x = (width - inner_w) / 2.0;
         let inner_y = (height - inner_h) / 2.0;
 
-        let outer_offset = config.input.border / 2.0;
-        let outer_h = inner_h + padding_y + (outer_offset * 2.0);
-        let outer_w = inner_w + padding_x + (outer_offset * 2.0);
+        let outer_h = inner_h + (padding_y * 2.0) + config.input.border;
+        let outer_w = inner_w + (padding_x * 2.0) + config.input.border;
         let outer_x = (width - outer_w) / 2.0;
         let outer_y = (height - outer_h) / 2.0;
 
