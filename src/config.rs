@@ -28,6 +28,9 @@ pub struct NLockConfig {
 
     #[serde(default)]
     pub frame: NLockConfigFrame,
+
+    #[serde(default)]
+    pub general: NLockConfigGeneral,
 }
 
 #[derive(Deserialize)]
@@ -225,6 +228,24 @@ fn default_frame_border() -> f64 {
 
 fn default_frame_radius() -> f64 {
     0.0f64
+}
+
+#[derive(Deserialize)]
+pub struct NLockConfigGeneral {
+    #[serde(default = "default_pwd_allow_empty", rename = "allowEmptyPassword")]
+    pub pwd_allow_empty: bool,
+}
+
+impl Default for NLockConfigGeneral {
+    fn default() -> Self {
+        Self {
+            pwd_allow_empty: default_pwd_allow_empty(),
+        }
+    }
+}
+
+fn default_pwd_allow_empty() -> bool {
+    false
 }
 
 impl NLockConfig {

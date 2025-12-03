@@ -8,6 +8,8 @@ use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use zeroize::Zeroizing;
 
+use crate::config::NLockConfig;
+
 #[derive(Debug)]
 pub enum AuthRequest {
     Password(Zeroizing<String>, oneshot::Sender<Result<()>>),
@@ -21,17 +23,35 @@ pub enum AuthState {
     Fail,
 }
 
-fn authenticate(username: String, password: Zeroizing<String>) -> Result<()> {
+pub struct AuthConfig {
+    pub allow_empty: bool,
+}
+
+impl AuthConfig {
+    pub fn new(config: &NLockConfig) -> Self {
+        Self {
+            allow_empty: config.general.pwd_allow_empty,
+        }
+    }
+}
+
+fn authenticate(config: &AuthConfig, username: String, password: Zeroizing<String>) -> Result<()> {
     let mut context = Context::new(
         "nlock",
         None,
         Conversation::with_credentials(username, password.as_str()),
     )?;
-    context.authenticate(Flag::DISALLOW_NULL_AUTHTOK)?;
+
+    let mut flags = Flag::empty();
+    if !config.allow_empty {
+        flags |= Flag::DISALLOW_NULL_AUTHTOK;
+    }
+
+    context.authenticate(flags)?;
     Ok(())
 }
 
-pub async fn run_auth_loop(auth_rx: mpsc::Receiver<AuthRequest>) -> Result<()> {
+pub async fn run_auth_loop(config: AuthConfig, auth_rx: mpsc::Receiver<AuthRequest>) -> Result<()> {
     let mut rx = auth_rx;
 
     let username = uzers::get_current_username().ok_or(anyhow!("Current user does not exist"))?;
@@ -48,7 +68,7 @@ pub async fn run_auth_loop(auth_rx: mpsc::Receiver<AuthRequest>) -> Result<()> {
                     continue;
                 }
 
-                match authenticate(username.clone(), pwd) {
+                match authenticate(&config, username.clone(), pwd) {
                     Ok(()) => {
                         success = true;
                         let _ = responder.send(Ok(()));

@@ -11,6 +11,10 @@ the available configuration options (this might not be up-to-date).
 ```toml
 # The values defined in this example are the defaults used by nlock
 
+# General configuration options
+[general]
+allowEmptyPassword = false      # allow a blank password to be validated
+
 # Colors section configures, well, colors.
 [colors]
 # Colors are in either #RRGGBBAA or #RRGGBB format,

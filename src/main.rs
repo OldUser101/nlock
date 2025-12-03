@@ -13,7 +13,7 @@ pub mod util;
 use std::sync::atomic::Ordering;
 
 use crate::{
-    auth::{AuthRequest, run_auth_loop},
+    auth::{AuthConfig, AuthRequest, run_auth_loop},
     config::NLockConfig,
     state::NLockState,
 };
@@ -37,6 +37,7 @@ async fn start(config: NLockConfig) -> Result<()> {
     let display = conn.display();
 
     let (auth_tx, auth_rx) = mpsc::channel::<AuthRequest>(32);
+    let auth_config = AuthConfig::new(&config);
 
     let mut state = NLockState::new(config, display, auth_tx.clone())?;
 
@@ -63,7 +64,7 @@ async fn start(config: NLockConfig) -> Result<()> {
     }
 
     tokio::spawn(async move {
-        if let Err(e) = run_auth_loop(auth_rx).await {
+        if let Err(e) = run_auth_loop(auth_config, auth_rx).await {
             warn!("Error in auth thread: {e}");
         }
     });
