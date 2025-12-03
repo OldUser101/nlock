@@ -25,6 +25,9 @@ pub struct NLockConfig {
 
     #[serde(default)]
     pub input: NLockConfigInput,
+
+    #[serde(default)]
+    pub frame: NLockConfigFrame,
 }
 
 #[derive(Deserialize)]
@@ -163,6 +166,24 @@ fn default_input_radius() -> f64 {
 
 fn default_input_border() -> f64 {
     0.0f64
+}
+
+#[derive(Deserialize)]
+pub struct NLockConfigFrame {
+    #[serde(default = "default_frame_border")]
+    pub border: f64,
+}
+
+impl Default for NLockConfigFrame {
+    fn default() -> Self {
+        Self {
+            border: default_frame_border(),
+        }
+    }
+}
+
+fn default_frame_border() -> f64 {
+    25.0f64
 }
 
 impl NLockConfig {

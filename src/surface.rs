@@ -15,7 +15,6 @@ use wayland_protocols::ext::session_lock::v1::client::{
 use crate::{buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
-const DEFAULT_LINE_WIDTH: f64 = 25.0;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Rgba {
@@ -365,7 +364,7 @@ impl NLockSurface {
             border_color.b,
             border_color.a,
         );
-        context.set_line_width(DEFAULT_LINE_WIDTH);
+        context.set_line_width(config.frame.border);
         context.rectangle(0.0, 0.0, width, height);
         context.stroke()?;
         context.restore()?;
