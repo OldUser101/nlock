@@ -15,10 +15,13 @@ the available configuration options (this might not be up-to-date).
 [colors]
 # Colors are in either #RRGGBBAA or #RRGGBB format,
 # both #RRGGBBAA in this case.
-background = "#000000FF"        # background color, same as "#000000"
-text = "#FFFFFFFF"              # text color, same as "#FFFFFF"
-inputBackground = "#000000FF"   # input box background color
-inputBorder = "#000000FF"       # input box border color
+background = "#000000FF"            # background color, same as "#000000"
+text = "#FFFFFFFF"                  # text color, same as "#FFFFFF"
+inputBackground = "#000000FF"       # input box background color
+inputBorder = "#000000FF"           # input box border color
+frameBorderIdle = "#00000000"       # frame border idle color
+frameBorderSuccess = "#00000000"    # frame border success color
+frameBorderFail = "#FF0000FF"       # frame border error color
 
 # Font section configures text display.
 [font]
@@ -40,6 +43,11 @@ paddingX = 0.05     # input box horizontal padding, relative to display width
 paddingY = 0.05     # input box vertical padding, relative to display height
 radius = 0.0        # radius of input box corners, relative to total box height
 border = 0.0        # width of input box border, absolute, typically pixels
+
+# Frame section configures everything around the input box.
+[frame]
+border = 25.0   # width of frame border, absolute units, typically pixels
+radius = 0.0    # radius of frame border, absolute units, typically pixels
 ```
 
 Further configuration values are likely to be added in the future. Hopefully,

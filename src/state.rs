@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use nix::sys::eventfd::EventFd;
@@ -22,8 +22,8 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
+use crate::auth::{AtomicAuthState, AuthState};
 use crate::config::NLockConfig;
-use crate::surface::Rgba;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -47,10 +47,10 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub border_color: Arc<Mutex<Rgba>>,
     pub epoll: Option<Epoll>,
     pub timers: Vec<(TimerFd, u64)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
+    pub auth_state: Arc<AtomicAuthState>,
     pub state_ev: Arc<EventFd>,
 }
 
@@ -77,10 +77,10 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            border_color: Arc::new(Mutex::new(Rgba::new(0.0, 0.0, 0.0, 0.0))),
             epoll: None,
             timers: Vec::new(),
             auth_tx,
+            auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
             state_ev: Arc::new(EventFd::new()?),
         })
     }
@@ -126,9 +126,11 @@ impl NLockState {
         let tx_clone = self.auth_tx.clone();
         let password = self.password.clone();
         let running = self.running.clone();
-        let border_color = self.border_color.clone();
         let state_changed = self.state_changed.clone();
         let state_ev = self.state_ev.clone();
+        let auth_state = self.auth_state.clone();
+
+        auth_state.store(AuthState::Idle, Ordering::Relaxed);
 
         tokio::spawn(async move {
             let (resp_tx, resp_rx) = oneshot::channel();
@@ -143,17 +145,14 @@ impl NLockState {
             match resp_rx.await {
                 Ok(Ok(())) => {
                     info!("Authentication completed sucecssfully");
+
+                    auth_state.store(AuthState::Success, Ordering::Relaxed);
                     running.store(false, Ordering::Relaxed);
                 }
                 Ok(Err(e)) => {
                     warn!("PAM authentication error: {e}");
 
-                    let mut border_color = border_color.lock().unwrap();
-                    border_color.r = 1.0;
-                    border_color.g = 0.0;
-                    border_color.b = 0.0;
-                    border_color.a = 1.0;
-
+                    auth_state.store(AuthState::Fail, Ordering::Relaxed);
                     state_changed.store(true, Ordering::Relaxed);
                     let _ = state_ev.write(1);
                 }
