@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use std::sync::atomic::Ordering;
+
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, de};
 use tracing::warn;
@@ -12,7 +14,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
 
-use crate::{buffer::NLockBuffer, config::NLockConfig, state::NLockState};
+use crate::{auth::AuthState, buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
 
@@ -305,11 +307,39 @@ impl NLockSurface {
         context.close_path();
     }
 
+    fn set_frame_border_color(
+        &self,
+        config: &NLockConfig,
+        context: &cairo::Context,
+        auth_state: AuthState,
+    ) {
+        match auth_state {
+            AuthState::Idle => context.set_source_rgba(
+                config.colors.frame_border_idle.r,
+                config.colors.frame_border_idle.g,
+                config.colors.frame_border_idle.b,
+                config.colors.frame_border_idle.a,
+            ),
+            AuthState::Success => context.set_source_rgba(
+                config.colors.frame_border_success.r,
+                config.colors.frame_border_success.g,
+                config.colors.frame_border_success.b,
+                config.colors.frame_border_success.a,
+            ),
+            AuthState::Fail => context.set_source_rgba(
+                config.colors.frame_border_fail.r,
+                config.colors.frame_border_fail.g,
+                config.colors.frame_border_fail.b,
+                config.colors.frame_border_fail.a,
+            ),
+        }
+    }
+
     pub fn render(
         &mut self,
         config: &NLockConfig,
+        auth_state: AuthState,
         password_len: usize,
-        border_color: Rgba,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -333,7 +363,7 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(config, border_color, password_len, context) {
+        if let Err(e) = self.render_frame(config, auth_state, password_len, context) {
             warn!("Error while rendering: {e}");
         }
 
@@ -346,7 +376,7 @@ impl NLockSurface {
     fn render_frame(
         &self,
         config: &NLockConfig,
-        border_color: Rgba,
+        auth_state: AuthState,
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
@@ -358,12 +388,7 @@ impl NLockSurface {
 
         // Draw border colour
         context.save()?;
-        context.set_source_rgba(
-            border_color.r,
-            border_color.g,
-            border_color.b,
-            border_color.a,
-        );
+        self.set_frame_border_color(config, context, auth_state);
         context.set_line_width(config.frame.border);
         context.rectangle(0.0, 0.0, width, height);
         context.stroke()?;
@@ -474,8 +499,8 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
 
             lock_surface.ack_configure(serial);
 
-            let border_color = state.border_color.lock().unwrap();
-            surface.render(&state.config, state.password.len(), *border_color, shm, qh);
+            let auth_state = state.auth_state.clone().load(Ordering::Relaxed);
+            surface.render(&state.config, auth_state, state.password.len(), shm, qh);
         }
     }
 }

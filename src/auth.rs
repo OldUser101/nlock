@@ -2,6 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
+use atomic_enum::atomic_enum;
 use pam_client::{Context, Flag, conv_mock::Conversation};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
@@ -11,6 +12,13 @@ use zeroize::Zeroizing;
 pub enum AuthRequest {
     Password(Zeroizing<String>, oneshot::Sender<Result<()>>),
     Exit,
+}
+
+#[atomic_enum]
+pub enum AuthState {
+    Idle,
+    Success,
+    Fail,
 }
 
 fn authenticate(username: String, password: Zeroizing<String>) -> Result<()> {

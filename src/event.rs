@@ -175,10 +175,11 @@ impl NLockState {
         // Re-render if state was updated
         if self.state_changed.load(Ordering::Relaxed)
             && let Some(shm) = &self.shm
-            && let Ok(border_color) = self.border_color.lock()
         {
+            let auth_state = self.auth_state.clone().load(Ordering::Relaxed);
+
             for i in 0..self.surfaces.len() {
-                self.surfaces[i].render(&self.config, self.password.len(), *border_color, shm, &qh);
+                self.surfaces[i].render(&self.config, auth_state, self.password.len(), shm, &qh);
             }
 
             self.state_changed.store(false, Ordering::Relaxed);

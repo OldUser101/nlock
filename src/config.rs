@@ -43,6 +43,24 @@ pub struct NLockConfigColors {
 
     #[serde(default = "default_input_border_color", rename = "inputBorder")]
     pub input_border: Rgba,
+
+    #[serde(
+        default = "default_frame_border_idle_color",
+        rename = "frameBorderIdle"
+    )]
+    pub frame_border_idle: Rgba,
+
+    #[serde(
+        default = "default_frame_border_success_color",
+        rename = "frameBorderSuccess"
+    )]
+    pub frame_border_success: Rgba,
+
+    #[serde(
+        default = "default_frame_border_fail_color",
+        rename = "frameBorderFail"
+    )]
+    pub frame_border_fail: Rgba,
 }
 
 impl Default for NLockConfigColors {
@@ -52,6 +70,9 @@ impl Default for NLockConfigColors {
             text: default_text_color(),
             input_bg: default_input_bg_color(),
             input_border: default_input_border_color(),
+            frame_border_idle: default_frame_border_idle_color(),
+            frame_border_success: default_frame_border_success_color(),
+            frame_border_fail: default_frame_border_fail_color(),
         }
     }
 }
@@ -70,6 +91,18 @@ fn default_input_bg_color() -> Rgba {
 
 fn default_input_border_color() -> Rgba {
     Rgba::new(0.0, 0.0, 0.0, 1.0)
+}
+
+fn default_frame_border_idle_color() -> Rgba {
+    Rgba::new(0.0, 0.0, 0.0, 0.0)
+}
+
+fn default_frame_border_success_color() -> Rgba {
+    Rgba::new(0.0, 0.0, 0.0, 0.0)
+}
+
+fn default_frame_border_fail_color() -> Rgba {
+    Rgba::new(1.0, 0.0, 0.0, 1.0)
 }
 
 #[derive(Deserialize)]
