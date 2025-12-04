@@ -38,6 +38,13 @@ impl Default for Rgba {
     }
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundMode {
+    Color,
+    Image,
+}
+
 impl<'de> Deserialize<'de> for Rgba {
     fn deserialize<D>(d: D) -> std::result::Result<Self, D::Error>
     where

@@ -9,7 +9,7 @@ use dirs::config_dir;
 use serde::Deserialize;
 use tracing::debug;
 
-use crate::surface::{FontSlant, FontWeight, Rgba};
+use crate::surface::{BackgroundMode, FontSlant, FontWeight, Rgba};
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
@@ -227,6 +227,9 @@ pub struct NLockConfigFrame {
 
     #[serde(default = "default_frame_radius")]
     pub radius: f64,
+
+    #[serde(default = "default_bg_mode", rename = "backgroundMode")]
+    pub bg_mode: BackgroundMode,
 }
 
 impl Default for NLockConfigFrame {
@@ -234,6 +237,7 @@ impl Default for NLockConfigFrame {
         Self {
             border: default_frame_border(),
             radius: default_frame_radius(),
+            bg_mode: default_bg_mode(),
         }
     }
 }
@@ -244,6 +248,10 @@ fn default_frame_border() -> f64 {
 
 fn default_frame_radius() -> f64 {
     0.0f64
+}
+
+fn default_bg_mode() -> BackgroundMode {
+    BackgroundMode::Color
 }
 
 #[derive(Deserialize)]
