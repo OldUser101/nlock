@@ -5,6 +5,7 @@ pub mod auth;
 pub mod buffer;
 pub mod config;
 pub mod event;
+pub mod image;
 pub mod seat;
 pub mod state;
 pub mod surface;
