@@ -416,8 +416,18 @@ impl NLockSurface {
         let padding_x = config.input.padding_x * width;
         let padding_y = config.input.padding_y * height;
 
+        // Calculate text extents here, so input box width can be determined
+        let text = config.input.mask_char.repeat(password_len);
+        let text_ext = context.text_extents(text.as_str())?;
+
+        let mut inner_w = width * config.input.width;
+
+        if config.input.fit_to_content {
+            // Cap computed width to specified width
+            inner_w = text_ext.width().min(inner_w);
+        }
+
         let inner_h = fe.height();
-        let inner_w = width * config.input.width;
         let inner_x = (width - inner_w) / 2.0;
         let inner_y = (height - inner_h) / 2.0;
 
@@ -459,9 +469,7 @@ impl NLockSurface {
         context.rectangle(inner_x, inner_y, inner_w, inner_h);
         context.clip();
 
-        let text = config.input.mask_char.repeat(password_len);
-        let ext = context.text_extents(text.as_str())?;
-        let text_x = inner_x + (inner_w - ext.width()) / 2.0 - ext.x_bearing();
+        let text_x = inner_x + (inner_w - text_ext.width()) / 2.0 - text_ext.x_bearing();
         let text_y = inner_y + (inner_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
 
         // Actually draw the text

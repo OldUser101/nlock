@@ -172,6 +172,9 @@ pub struct NLockConfigInput {
 
     #[serde(default = "default_input_hide_when_empty", rename = "hideWhenEmpty")]
     pub hide_when_empty: bool,
+
+    #[serde(default = "default_input_fit_to_content", rename = "fitToContent")]
+    pub fit_to_content: bool,
 }
 
 impl Default for NLockConfigInput {
@@ -184,6 +187,7 @@ impl Default for NLockConfigInput {
             radius: default_input_radius(),
             border: default_input_border(),
             hide_when_empty: default_input_hide_when_empty(),
+            fit_to_content: default_input_fit_to_content(),
         }
     }
 }
@@ -209,6 +213,10 @@ fn default_input_border() -> f64 {
 }
 
 fn default_input_hide_when_empty() -> bool {
+    false
+}
+
+fn default_input_fit_to_content() -> bool {
     false
 }
 
