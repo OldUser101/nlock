@@ -148,6 +148,7 @@ impl NLockState {
 
                     auth_state.store(AuthState::Success, Ordering::Relaxed);
                     running.store(false, Ordering::Relaxed);
+                    let _ = state_ev.write(1);
                 }
                 Ok(Err(e)) => {
                     warn!("PAM authentication error: {e}");
