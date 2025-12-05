@@ -199,7 +199,15 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                     let output =
                         registry.bind::<wl_output::WlOutput, _, _>(name, version, qh, index);
 
-                    let surface = NLockSurface::new(output, index);
+                    let mut surface = NLockSurface::new(output, index);
+
+                    if let Err(e) = surface.try_load_background_image(&state.config) {
+                        warn!(
+                            "Error loading background image: {}: {e}",
+                            state.config.image.path.display(),
+                        );
+                    }
+
                     state.surfaces.push(surface);
                 }
                 "ext_session_lock_manager_v1" => {

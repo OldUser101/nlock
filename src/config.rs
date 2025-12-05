@@ -31,6 +31,9 @@ pub struct NLockConfig {
 
     #[serde(default)]
     pub general: NLockConfigGeneral,
+
+    #[serde(default)]
+    pub image: NLockConfigImage,
 }
 
 #[derive(Deserialize)]
@@ -227,9 +230,6 @@ pub struct NLockConfigFrame {
 
     #[serde(default = "default_frame_radius")]
     pub radius: f64,
-
-    #[serde(default = "default_bg_mode", rename = "backgroundMode")]
-    pub bg_mode: BackgroundMode,
 }
 
 impl Default for NLockConfigFrame {
@@ -237,7 +237,6 @@ impl Default for NLockConfigFrame {
         Self {
             border: default_frame_border(),
             radius: default_frame_radius(),
-            bg_mode: default_bg_mode(),
         }
     }
 }
@@ -250,10 +249,6 @@ fn default_frame_radius() -> f64 {
     0.0f64
 }
 
-fn default_bg_mode() -> BackgroundMode {
-    BackgroundMode::Color
-}
-
 #[derive(Deserialize)]
 pub struct NLockConfigGeneral {
     #[serde(default = "default_pwd_allow_empty", rename = "allowEmptyPassword")]
@@ -261,6 +256,9 @@ pub struct NLockConfigGeneral {
 
     #[serde(default = "default_hide_cursor", rename = "hideCursor")]
     pub hide_cursor: bool,
+
+    #[serde(default = "default_bg_mode", rename = "backgroundMode")]
+    pub bg_mode: BackgroundMode,
 }
 
 impl Default for NLockConfigGeneral {
@@ -268,6 +266,7 @@ impl Default for NLockConfigGeneral {
         Self {
             pwd_allow_empty: default_pwd_allow_empty(),
             hide_cursor: default_hide_cursor(),
+            bg_mode: default_bg_mode(),
         }
     }
 }
@@ -278,6 +277,28 @@ fn default_pwd_allow_empty() -> bool {
 
 fn default_hide_cursor() -> bool {
     true
+}
+
+fn default_bg_mode() -> BackgroundMode {
+    BackgroundMode::Color
+}
+
+#[derive(Deserialize)]
+pub struct NLockConfigImage {
+    #[serde(default = "default_image_path")]
+    pub path: PathBuf,
+}
+
+impl Default for NLockConfigImage {
+    fn default() -> Self {
+        Self {
+            path: default_image_path(),
+        }
+    }
+}
+
+fn default_image_path() -> PathBuf {
+    PathBuf::from("")
 }
 
 impl NLockConfig {
