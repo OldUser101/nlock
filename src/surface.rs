@@ -4,6 +4,7 @@
 use std::sync::atomic::Ordering;
 
 use anyhow::{Result, anyhow};
+use cairo::SurfacePattern;
 use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
@@ -14,7 +15,10 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
 
-use crate::{auth::AuthState, buffer::NLockBuffer, config::NLockConfig, state::NLockState};
+use crate::{
+    auth::AuthState, buffer::NLockBuffer, config::NLockConfig, image::BackgroundImageScale,
+    state::NLockState,
+};
 
 const DEFAULT_DPI: f64 = 96.0;
 
@@ -36,6 +40,13 @@ impl Default for Rgba {
     fn default() -> Self {
         Self::new(0.0, 0.0, 0.0, 1.0)
     }
+}
+
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundType {
+    Color,
+    Image,
 }
 
 impl<'de> Deserialize<'de> for Rgba {
@@ -167,15 +178,107 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
-    fn clear_surface(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
+    fn draw_background_image(
+        &self,
+        mode: BackgroundImageScale,
+        bg_image: &cairo::ImageSurface,
+        context: &cairo::Context,
+    ) -> Result<()> {
+        let buf_width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
+        let buf_height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
+
+        let width = bg_image.width() as f64;
+        let height = bg_image.height() as f64;
+
+        match mode {
+            BackgroundImageScale::Stretch => {
+                context.scale(buf_width / width, buf_height / height);
+                context.set_source_surface(bg_image, 0.0, 0.0)?;
+            }
+            BackgroundImageScale::Center => {
+                context.set_source_surface(
+                    bg_image,
+                    (buf_width / 2.0 - width / 2.0).floor(),
+                    (buf_height / 2.0 - height / 2.0).floor(),
+                )?;
+            }
+            BackgroundImageScale::Tile => {
+                let pattern = SurfacePattern::create(bg_image);
+                pattern.set_extend(cairo::Extend::Repeat);
+                context.set_source(pattern)?;
+            }
+            BackgroundImageScale::Fit => {
+                let buf_ratio = buf_width / buf_height;
+                let bg_ratio = width / height;
+
+                if buf_ratio > bg_ratio {
+                    let scale = buf_height / height;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        buf_width / 2.0 / scale - width / 2.0,
+                        0.0,
+                    )?;
+                } else {
+                    let scale = buf_width / width;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        0.0,
+                        buf_height / 2.0 / scale - height / 2.0,
+                    )?;
+                }
+            }
+            BackgroundImageScale::Fill => {
+                let buf_ratio = buf_width / buf_height;
+                let bg_ratio = width / height;
+
+                if buf_ratio > bg_ratio {
+                    let scale = buf_width / width;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        0.0,
+                        buf_height / 2.0 / scale - height / 2.0,
+                    )?;
+                } else {
+                    let scale = buf_height / height;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        buf_width / 2.0 / scale - width / 2.0,
+                        0.0,
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn render_background(
+        &self,
+        config: &NLockConfig,
+        bg_image: Option<&cairo::ImageSurface>,
+        context: &cairo::Context,
+    ) -> Result<()> {
         context.save()?;
-        context.set_source_rgba(
-            config.colors.bg.r,
-            config.colors.bg.g,
-            config.colors.bg.b,
-            config.colors.bg.a,
-        );
-        context.set_operator(cairo::Operator::Source);
+
+        match config.general.bg_type {
+            BackgroundType::Color => {
+                context.set_source_rgba(
+                    config.colors.bg.r,
+                    config.colors.bg.g,
+                    config.colors.bg.b,
+                    config.colors.bg.a,
+                );
+                context.set_operator(cairo::Operator::Source);
+            }
+            BackgroundType::Image => {
+                let image = bg_image.ok_or(anyhow!("Surface in image mode, but no image set!"))?;
+                self.draw_background_image(config.image.scale, image, context)?;
+            }
+        }
         context.paint()?;
         context.restore()?;
 
@@ -340,6 +443,7 @@ impl NLockSurface {
         config: &NLockConfig,
         auth_state: AuthState,
         password_len: usize,
+        bg_image: Option<&cairo::ImageSurface>,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -363,7 +467,7 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(config, auth_state, password_len, context) {
+        if let Err(e) = self.render_frame(config, auth_state, password_len, bg_image, context) {
             warn!("Error while rendering: {e}");
         }
 
@@ -378,13 +482,14 @@ impl NLockSurface {
         config: &NLockConfig,
         auth_state: AuthState,
         password_len: usize,
+        bg_image: Option<&cairo::ImageSurface>,
         context: &cairo::Context,
     ) -> Result<()> {
         let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
         let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
 
         self.configure_cairo_font(config, context)?;
-        self.clear_surface(config, context)?;
+        self.render_background(config, bg_image, context)?;
 
         // Draw border colour
         context.save()?;
@@ -525,7 +630,14 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             lock_surface.ack_configure(serial);
 
             let auth_state = state.auth_state.clone().load(Ordering::Relaxed);
-            surface.render(&state.config, auth_state, state.password.len(), shm, qh);
+            surface.render(
+                &state.config,
+                auth_state,
+                state.password.len(),
+                state.background_image.as_ref(),
+                shm,
+                qh,
+            );
         }
     }
 }

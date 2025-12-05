@@ -15,6 +15,7 @@ the available configuration options (this might not be up-to-date).
 [general]
 allowEmptyPassword = false      # allow a blank password to be validated
 hideCursor = true               # hide the mouse cursor
+backgroundType = "color"        # background type "color", or "image"
 
 # Colors section configures, well, colors.
 [colors]
@@ -56,6 +57,10 @@ fitToContent = false    # resize input box to fit password, up to `width`
 [frame]
 border = 25.0   # width of frame border, absolute units, typically pixels
 radius = 0.0    # radius of frame border, absolute units, typically pixels
+
+[image]
+path = ""       # full path to background image, does not support shell expansions
+scale = "fill"  # background image scaling, "center", "fit", "fill", "stretch", "tile"
 ```
 
 Further configuration values are likely to be added in the future. Hopefully,

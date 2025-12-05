@@ -4,7 +4,9 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow, bail};
+use cairo::ImageSurface;
+use gdk_pixbuf::Pixbuf;
 use nix::sys::eventfd::EventFd;
 use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tokio::sync::{mpsc, oneshot};
@@ -24,6 +26,8 @@ use zeroize::Zeroizing;
 
 use crate::auth::{AtomicAuthState, AuthState};
 use crate::config::NLockConfig;
+use crate::image::ImageSurfaceExt;
+use crate::surface::BackgroundType;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -52,6 +56,7 @@ pub struct NLockState {
     pub auth_tx: mpsc::Sender<AuthRequest>,
     pub auth_state: Arc<AtomicAuthState>,
     pub state_ev: Arc<EventFd>,
+    pub background_image: Option<cairo::ImageSurface>,
 }
 
 impl NLockState {
@@ -60,7 +65,7 @@ impl NLockState {
         display: wl_display::WlDisplay,
         auth_tx: mpsc::Sender<AuthRequest>,
     ) -> Result<Self> {
-        Ok(Self {
+        let mut s = Self {
             config,
             running: Arc::new(AtomicBool::new(true)),
             locked: false,
@@ -82,7 +87,18 @@ impl NLockState {
             auth_tx,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
             state_ev: Arc::new(EventFd::new()?),
-        })
+            background_image: None,
+        };
+
+        if let Err(e) = s.try_load_background_image() {
+            bail!(
+                "Failed to load background image: {}: {}",
+                s.config.image.path.display(),
+                e
+            );
+        }
+
+        Ok(s)
     }
 
     pub fn get_registry(&mut self, qh: &QueueHandle<Self>) {
@@ -162,6 +178,22 @@ impl NLockState {
         });
 
         self.clear_password();
+    }
+
+    fn try_load_background_image(&mut self) -> Result<()> {
+        if self.config.general.bg_type == BackgroundType::Color {
+            self.config.general.bg_type = BackgroundType::Color;
+            return Ok(());
+        }
+
+        let pixbuf = Pixbuf::from_file(self.config.image.path.clone())?;
+        let pixbuf = pixbuf
+            .apply_embedded_orientation()
+            .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
+        self.background_image = Some(ImageSurface::create_from_pixbuf(&pixbuf)?);
+        self.config.general.bg_type = BackgroundType::Image;
+
+        Ok(())
     }
 }
 

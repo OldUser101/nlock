@@ -21,7 +21,8 @@ jobs:
         sudo apt -y update
         sudo apt -y install \
             llvm-dev libclang-dev clang libglib2.0-dev pkg-config \
-            libpam0g-dev libcairo2-dev libxkbcommon-dev
+            libpam0g-dev libcairo2-dev libxkbcommon-dev \
+            libgdk-pixbuf2.0-dev
     - name: Build
       run: cargo build --verbose
     - name: Run tests
