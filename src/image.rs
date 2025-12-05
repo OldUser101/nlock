@@ -4,6 +4,17 @@
 use anyhow::{Result, anyhow};
 use cairo::{Format, ImageSurface};
 use gdk_pixbuf::Pixbuf;
+use serde::Deserialize;
+
+#[derive(Deserialize, Copy, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundImageScale {
+    Stretch,
+    Fill,
+    Fit,
+    Center,
+    Tile,
+}
 
 pub trait ImageSurfaceExt {
     fn create_from_pixbuf(pixbuf: &Pixbuf) -> Result<ImageSurface>;

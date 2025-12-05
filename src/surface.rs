@@ -4,6 +4,7 @@
 use std::sync::atomic::Ordering;
 
 use anyhow::{Result, anyhow};
+use cairo::SurfacePattern;
 use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
@@ -14,7 +15,10 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
 
-use crate::{auth::AuthState, buffer::NLockBuffer, config::NLockConfig, state::NLockState};
+use crate::{
+    auth::AuthState, buffer::NLockBuffer, config::NLockConfig, image::BackgroundImageScale,
+    state::NLockState,
+};
 
 const DEFAULT_DPI: f64 = 96.0;
 
@@ -40,7 +44,7 @@ impl Default for Rgba {
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
-pub enum BackgroundMode {
+pub enum BackgroundType {
     Color,
     Image,
 }
@@ -174,6 +178,84 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
+    fn draw_background_image(
+        &self,
+        mode: BackgroundImageScale,
+        bg_image: &cairo::ImageSurface,
+        context: &cairo::Context,
+    ) -> Result<()> {
+        let buf_width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
+        let buf_height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
+
+        let width = bg_image.width() as f64;
+        let height = bg_image.height() as f64;
+
+        match mode {
+            BackgroundImageScale::Stretch => {
+                context.scale(buf_width / width, buf_height / height);
+                context.set_source_surface(bg_image, 0.0, 0.0)?;
+            }
+            BackgroundImageScale::Center => {
+                context.set_source_surface(
+                    bg_image,
+                    (buf_width / 2.0 - width / 2.0).floor(),
+                    (buf_height / 2.0 - height / 2.0).floor(),
+                )?;
+            }
+            BackgroundImageScale::Tile => {
+                let pattern = SurfacePattern::create(bg_image);
+                pattern.set_extend(cairo::Extend::Repeat);
+                context.set_source(pattern)?;
+            }
+            BackgroundImageScale::Fit => {
+                let buf_ratio = buf_width / buf_height;
+                let bg_ratio = width / height;
+
+                if buf_ratio > bg_ratio {
+                    let scale = buf_height / height;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        buf_width / 2.0 / scale - width / 2.0,
+                        0.0,
+                    )?;
+                } else {
+                    let scale = buf_width / width;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        0.0,
+                        buf_height / 2.0 / scale - height / 2.0,
+                    )?;
+                }
+            }
+            BackgroundImageScale::Fill => {
+                let buf_ratio = buf_width / buf_height;
+                let bg_ratio = width / height;
+
+                if buf_ratio > bg_ratio {
+                    let scale = buf_width / width;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        0.0,
+                        buf_height / 2.0 / scale - height / 2.0,
+                    )?;
+                } else {
+                    let scale = buf_height / height;
+                    context.scale(scale, scale);
+                    context.set_source_surface(
+                        bg_image,
+                        buf_width / 2.0 / scale - width / 2.0,
+                        0.0,
+                    )?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn render_background(
         &self,
         config: &NLockConfig,
@@ -182,8 +264,8 @@ impl NLockSurface {
     ) -> Result<()> {
         context.save()?;
 
-        match config.general.bg_mode {
-            BackgroundMode::Color => {
+        match config.general.bg_type {
+            BackgroundType::Color => {
                 context.set_source_rgba(
                     config.colors.bg.r,
                     config.colors.bg.g,
@@ -192,9 +274,9 @@ impl NLockSurface {
                 );
                 context.set_operator(cairo::Operator::Source);
             }
-            BackgroundMode::Image => {
+            BackgroundType::Image => {
                 let image = bg_image.ok_or(anyhow!("Surface in image mode, but no image set!"))?;
-                context.set_source_surface(image, 0.0, 0.0)?;
+                self.draw_background_image(config.image.scale, image, context)?;
             }
         }
         context.paint()?;

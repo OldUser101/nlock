@@ -27,7 +27,7 @@ use zeroize::Zeroizing;
 use crate::auth::{AtomicAuthState, AuthState};
 use crate::config::NLockConfig;
 use crate::image::ImageSurfaceExt;
-use crate::surface::BackgroundMode;
+use crate::surface::BackgroundType;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -181,8 +181,8 @@ impl NLockState {
     }
 
     fn try_load_background_image(&mut self) -> Result<()> {
-        if self.config.general.bg_mode == BackgroundMode::Color {
-            self.config.general.bg_mode = BackgroundMode::Color;
+        if self.config.general.bg_type == BackgroundType::Color {
+            self.config.general.bg_type = BackgroundType::Color;
             return Ok(());
         }
 
@@ -191,7 +191,7 @@ impl NLockState {
             .apply_embedded_orientation()
             .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
         self.background_image = Some(ImageSurface::create_from_pixbuf(&pixbuf)?);
-        self.config.general.bg_mode = BackgroundMode::Image;
+        self.config.general.bg_type = BackgroundType::Image;
 
         Ok(())
     }

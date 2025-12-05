@@ -9,7 +9,10 @@ use dirs::config_dir;
 use serde::Deserialize;
 use tracing::debug;
 
-use crate::surface::{BackgroundMode, FontSlant, FontWeight, Rgba};
+use crate::{
+    image::BackgroundImageScale,
+    surface::{BackgroundType, FontSlant, FontWeight, Rgba},
+};
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
@@ -257,8 +260,8 @@ pub struct NLockConfigGeneral {
     #[serde(default = "default_hide_cursor", rename = "hideCursor")]
     pub hide_cursor: bool,
 
-    #[serde(default = "default_bg_mode", rename = "backgroundMode")]
-    pub bg_mode: BackgroundMode,
+    #[serde(default = "default_bg_type", rename = "backgroundType")]
+    pub bg_type: BackgroundType,
 }
 
 impl Default for NLockConfigGeneral {
@@ -266,7 +269,7 @@ impl Default for NLockConfigGeneral {
         Self {
             pwd_allow_empty: default_pwd_allow_empty(),
             hide_cursor: default_hide_cursor(),
-            bg_mode: default_bg_mode(),
+            bg_type: default_bg_type(),
         }
     }
 }
@@ -279,26 +282,34 @@ fn default_hide_cursor() -> bool {
     true
 }
 
-fn default_bg_mode() -> BackgroundMode {
-    BackgroundMode::Color
+fn default_bg_type() -> BackgroundType {
+    BackgroundType::Color
 }
 
 #[derive(Deserialize)]
 pub struct NLockConfigImage {
     #[serde(default = "default_image_path")]
     pub path: PathBuf,
+
+    #[serde(default = "default_image_scale")]
+    pub scale: BackgroundImageScale,
 }
 
 impl Default for NLockConfigImage {
     fn default() -> Self {
         Self {
             path: default_image_path(),
+            scale: default_image_scale(),
         }
     }
 }
 
 fn default_image_path() -> PathBuf {
     PathBuf::from("")
+}
+
+fn default_image_scale() -> BackgroundImageScale {
+    BackgroundImageScale::Fill
 }
 
 impl NLockConfig {
