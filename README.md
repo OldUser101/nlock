@@ -18,6 +18,7 @@ probably be installed via your system package manager:
 
 - Clang
 - GLib
+- GDK-Pixbuf
 - PAM
 - Cairo
 - xkbcommon
