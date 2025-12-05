@@ -4,8 +4,6 @@
 use std::sync::atomic::Ordering;
 
 use anyhow::{Result, anyhow};
-use cairo::ImageSurface;
-use gdk_pixbuf::Pixbuf;
 use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
@@ -16,10 +14,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
 };
 
-use crate::{
-    auth::AuthState, buffer::NLockBuffer, config::NLockConfig, image::ImageSurfaceExt,
-    state::NLockState,
-};
+use crate::{auth::AuthState, buffer::NLockBuffer, config::NLockConfig, state::NLockState};
 
 const DEFAULT_DPI: f64 = 96.0;
 
@@ -133,10 +128,6 @@ pub struct NLockSurface {
     pub output: wl_output::WlOutput,
     pub lock_surface: Option<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1>,
     pub buffers: Vec<NLockBuffer>,
-    pub background_image: Option<cairo::ImageSurface>,
-
-    // This dictates the mode this surface is actually running in, regardless of config
-    pub background_mode: BackgroundMode,
 }
 
 impl NLockSurface {
@@ -156,25 +147,7 @@ impl NLockSurface {
             output,
             lock_surface: None,
             buffers: Vec::new(),
-            background_image: None,
-            background_mode: BackgroundMode::Color,
         }
-    }
-
-    pub fn try_load_background_image(&mut self, config: &NLockConfig) -> Result<()> {
-        if config.general.bg_mode == BackgroundMode::Color {
-            self.background_mode = BackgroundMode::Color;
-            return Ok(());
-        }
-
-        let pixbuf = Pixbuf::from_file(config.image.path.clone())?;
-        let pixbuf = pixbuf
-            .apply_embedded_orientation()
-            .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
-        self.background_image = Some(ImageSurface::create_from_pixbuf(&pixbuf)?);
-        self.background_mode = BackgroundMode::Image;
-
-        Ok(())
     }
 
     fn get_cairo_subpixel_order(&self) -> cairo::SubpixelOrder {
@@ -201,10 +174,15 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
-    fn render_background(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
+    fn render_background(
+        &self,
+        config: &NLockConfig,
+        bg_image: Option<&cairo::ImageSurface>,
+        context: &cairo::Context,
+    ) -> Result<()> {
         context.save()?;
 
-        match self.background_mode {
+        match config.general.bg_mode {
             BackgroundMode::Color => {
                 context.set_source_rgba(
                     config.colors.bg.r,
@@ -215,10 +193,7 @@ impl NLockSurface {
                 context.set_operator(cairo::Operator::Source);
             }
             BackgroundMode::Image => {
-                let image = self
-                    .background_image
-                    .as_ref()
-                    .ok_or(anyhow!("Surface in image mode, but no image set!"))?;
+                let image = bg_image.ok_or(anyhow!("Surface in image mode, but no image set!"))?;
                 context.set_source_surface(image, 0.0, 0.0)?;
             }
         }
@@ -386,6 +361,7 @@ impl NLockSurface {
         config: &NLockConfig,
         auth_state: AuthState,
         password_len: usize,
+        bg_image: Option<&cairo::ImageSurface>,
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
@@ -409,7 +385,7 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(config, auth_state, password_len, context) {
+        if let Err(e) = self.render_frame(config, auth_state, password_len, bg_image, context) {
             warn!("Error while rendering: {e}");
         }
 
@@ -424,13 +400,14 @@ impl NLockSurface {
         config: &NLockConfig,
         auth_state: AuthState,
         password_len: usize,
+        bg_image: Option<&cairo::ImageSurface>,
         context: &cairo::Context,
     ) -> Result<()> {
         let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
         let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
 
         self.configure_cairo_font(config, context)?;
-        self.render_background(config, context)?;
+        self.render_background(config, bg_image, context)?;
 
         // Draw border colour
         context.save()?;
@@ -571,7 +548,14 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             lock_surface.ack_configure(serial);
 
             let auth_state = state.auth_state.clone().load(Ordering::Relaxed);
-            surface.render(&state.config, auth_state, state.password.len(), shm, qh);
+            surface.render(
+                &state.config,
+                auth_state,
+                state.password.len(),
+                state.background_image.as_ref(),
+                shm,
+                qh,
+            );
         }
     }
 }

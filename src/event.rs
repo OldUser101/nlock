@@ -179,7 +179,14 @@ impl NLockState {
             let auth_state = self.auth_state.clone().load(Ordering::Relaxed);
 
             for i in 0..self.surfaces.len() {
-                self.surfaces[i].render(&self.config, auth_state, self.password.len(), shm, &qh);
+                self.surfaces[i].render(
+                    &self.config,
+                    auth_state,
+                    self.password.len(),
+                    self.background_image.as_ref(),
+                    shm,
+                    &qh,
+                );
             }
 
             self.state_changed.store(false, Ordering::Relaxed);
