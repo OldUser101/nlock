@@ -3,6 +3,7 @@
 
 pub mod auth;
 pub mod buffer;
+pub mod cli;
 pub mod config;
 pub mod event;
 pub mod image;
@@ -15,6 +16,7 @@ use std::sync::atomic::Ordering;
 
 use crate::{
     auth::{AuthConfig, AuthRequest, run_auth_loop},
+    cli::run_cli,
     config::NLockConfig,
     state::NLockState,
 };
@@ -88,9 +90,11 @@ async fn start(config: NLockConfig) -> Result<()> {
 
 #[tokio::main()]
 async fn main() {
+    let args = run_cli();
+
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(args.log_level.to_level())
         .init();
 
     let now = chrono::Local::now();
