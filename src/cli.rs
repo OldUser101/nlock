@@ -9,7 +9,7 @@ use clap::{
     },
 };
 
-#[derive(Clone, Debug, ValueEnum)]
+#[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
     Trace,
     Debug,
@@ -32,6 +32,7 @@ impl LogLevel {
 
 pub struct NLockArgs {
     pub log_level: LogLevel,
+    pub config_file: Option<String>,
 }
 
 fn styles() -> Styles {
@@ -58,13 +59,24 @@ fn build_cli() -> Command {
                 .value_parser(EnumValueParser::<LogLevel>::new())
                 .default_value("info"),
         )
+        .arg(
+            Arg::new("config_file")
+                .help("Path to the configuration file")
+                .short('c')
+                .long("config-file")
+                .value_name("CONFIG FILE"),
+        )
 }
 
 pub fn run_cli() -> NLockArgs {
     let cli = build_cli();
     let args = cli.get_matches();
 
-    let log_level = args.get_one("log_level").unwrap_or(&LogLevel::Info).clone();
+    let log_level = args.get_one("log_level").cloned().unwrap_or(LogLevel::Info);
+    let config_file: Option<String> = args.get_one::<String>("config_file").cloned();
 
-    NLockArgs { log_level }
+    NLockArgs {
+        log_level,
+        config_file,
+    }
 }

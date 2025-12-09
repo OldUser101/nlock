@@ -100,7 +100,7 @@ async fn main() {
     let now = chrono::Local::now();
     debug!("nlock started at {}", now.to_rfc3339());
 
-    match NLockConfig::load() {
+    match NLockConfig::load(&args) {
         Ok(cfg) => {
             if let Err(e) = start(cfg).await {
                 error!("{:#?}", e);

@@ -10,6 +10,7 @@ use serde::Deserialize;
 use tracing::debug;
 
 use crate::{
+    cli::NLockArgs,
     image::BackgroundImageScale,
     surface::{BackgroundType, FontSlant, FontWeight, Rgba},
 };
@@ -313,31 +314,43 @@ fn default_image_scale() -> BackgroundImageScale {
 }
 
 impl NLockConfig {
-    pub fn load() -> Result<Self> {
+    pub fn load(args: &NLockArgs) -> Result<Self> {
         let mut builder = Config::builder();
 
-        let mut system_config = PathBuf::from(SYSTEM_CONFIG_DIR);
-        system_config.push(CONFIG_DIR_NAME);
-        system_config.push(CONFIG_FILE_NAME);
+        if let Some(config_file) = &args.config_file {
+            let custom_config = PathBuf::from(config_file);
 
-        if system_config.is_file() {
-            let system_config_str = system_config
-                .to_str()
-                .ok_or(anyhow!("Failed to get system config string from path"))?;
-            builder = builder.add_source(File::new(system_config_str, FileFormat::Toml));
-            debug!("Including config file {:#?}", system_config);
-        }
+            if custom_config.is_file() {
+                builder = builder.add_source(File::new(config_file, FileFormat::Toml));
+                debug!("Including config file {:#?}", custom_config);
+            }
+        } else {
+            // TODO: I really need wrap this loading in something
 
-        let mut user_config = config_dir().ok_or(anyhow!("Failed to get user config directory"))?;
-        user_config.push(CONFIG_DIR_NAME);
-        user_config.push(CONFIG_FILE_NAME);
+            let mut system_config = PathBuf::from(SYSTEM_CONFIG_DIR);
+            system_config.push(CONFIG_DIR_NAME);
+            system_config.push(CONFIG_FILE_NAME);
 
-        if user_config.is_file() {
-            let user_config_str = user_config
-                .to_str()
-                .ok_or(anyhow!("Failed to get user config string from path"))?;
-            builder = builder.add_source(File::new(user_config_str, FileFormat::Toml));
-            debug!("Including config file {:#?}", user_config);
+            if system_config.is_file() {
+                let system_config_str = system_config
+                    .to_str()
+                    .ok_or(anyhow!("Failed to get system config string from path"))?;
+                builder = builder.add_source(File::new(system_config_str, FileFormat::Toml));
+                debug!("Including config file {:#?}", system_config);
+            }
+
+            let mut user_config =
+                config_dir().ok_or(anyhow!("Failed to get user config directory"))?;
+            user_config.push(CONFIG_DIR_NAME);
+            user_config.push(CONFIG_FILE_NAME);
+
+            if user_config.is_file() {
+                let user_config_str = user_config
+                    .to_str()
+                    .ok_or(anyhow!("Failed to get user config string from path"))?;
+                builder = builder.add_source(File::new(user_config_str, FileFormat::Toml));
+                debug!("Including config file {:#?}", user_config);
+            }
         }
 
         let config = builder.build()?;
