@@ -10,7 +10,7 @@ use serde::Deserialize;
 use tracing::debug;
 
 use crate::{
-    cli::NLockArgs,
+    args::NLockArgs,
     image::BackgroundImageScale,
     surface::{BackgroundType, FontSlant, FontWeight, Rgba},
 };

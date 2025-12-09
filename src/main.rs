@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+pub mod args;
 pub mod auth;
 pub mod buffer;
-pub mod cli;
 pub mod config;
 pub mod event;
 pub mod image;
@@ -15,8 +15,8 @@ pub mod util;
 use std::sync::atomic::Ordering;
 
 use crate::{
+    args::run_cli,
     auth::{AuthConfig, AuthRequest, run_auth_loop},
-    cli::run_cli,
     config::NLockConfig,
     state::NLockState,
 };
