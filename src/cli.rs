@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use std::str::FromStr;
+
 use clap::{
-    Arg, ArgMatches, Command, ValueEnum, arg,
+    Arg, ArgMatches, Command, ValueEnum,
     builder::{
         EnumValueParser, Styles,
         styling::{AnsiColor, Effects},
     },
 };
+
+use crate::surface::Rgba;
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
@@ -37,19 +41,69 @@ pub trait LoadArgMatches {
 pub struct NLockArgs {
     pub log_level: LogLevel,
     pub config_file: Option<String>,
+    pub colors: NLockArgsColors,
 }
 
 impl LoadArgMatches for NLockArgs {
     fn load_arg_matches(matches: ArgMatches) -> Self {
         let log_level = matches
-            .get_one("log-level")
+            .get_one::<LogLevel>("log_level")
             .cloned()
             .unwrap_or(LogLevel::Info);
-        let config_file: Option<String> = matches.get_one::<String>("config-file").cloned();
+        let config_file = matches.get_one::<String>("config_file").cloned();
 
         Self {
             log_level,
             config_file,
+            colors: NLockArgsColors::load_arg_matches(matches),
+        }
+    }
+}
+
+macro_rules! args_get_color {
+    ($matches:expr, $name:expr) => {
+        $matches.get_one::<Rgba>($name).cloned()
+    };
+}
+
+macro_rules! color_arg {
+    ($id:expr, $long:expr, $help:expr) => {
+        Arg::new($id)
+            .help($help)
+            .long($long)
+            .value_name("COLOR")
+            .value_parser(Rgba::from_str)
+    };
+}
+
+pub struct NLockArgsColors {
+    pub bg: Option<Rgba>,
+    pub text: Option<Rgba>,
+    pub input_bg: Option<Rgba>,
+    pub input_border: Option<Rgba>,
+    pub frame_border_idle: Option<Rgba>,
+    pub frame_border_success: Option<Rgba>,
+    pub frame_border_fail: Option<Rgba>,
+}
+
+impl LoadArgMatches for NLockArgsColors {
+    fn load_arg_matches(matches: ArgMatches) -> Self {
+        let bg = args_get_color!(matches, "bg_color");
+        let text = args_get_color!(matches, "text_color");
+        let input_bg = args_get_color!(matches, "input_bg_color");
+        let input_border = args_get_color!(matches, "input_border_color");
+        let frame_border_idle = args_get_color!(matches, "frame_border_idle_color");
+        let frame_border_success = args_get_color!(matches, "frame_border_success_color");
+        let frame_border_fail = args_get_color!(matches, "frame_border_fail_color");
+
+        Self {
+            bg,
+            text,
+            input_bg,
+            input_border,
+            frame_border_idle,
+            frame_border_success,
+            frame_border_fail,
         }
     }
 }
@@ -69,7 +123,6 @@ fn build_cli() -> Command {
         .about("Customisable, minimalist screen locker for Wayland")
         .version(env!("CARGO_PKG_VERSION"))
         .styles(styles())
-        .arg(arg!(--bg - color))
         .arg(
             Arg::new("log_level")
                 .help("Log level verbosity")
@@ -86,6 +139,41 @@ fn build_cli() -> Command {
                 .long("config-file")
                 .value_name("CONFIG FILE"),
         )
+        .arg(color_arg!(
+            "bg_color",
+            "bg-color",
+            "Sets the background color"
+        ))
+        .arg(color_arg!(
+            "text_color",
+            "text-color",
+            "Sets the text color"
+        ))
+        .arg(color_arg!(
+            "input_bg_color",
+            "input-bg-color",
+            "Sets the input background color"
+        ))
+        .arg(color_arg!(
+            "input_border_color",
+            "input-border-color",
+            "Sets the input border color"
+        ))
+        .arg(color_arg!(
+            "frame_border_idle_color",
+            "frame-border-idle-color",
+            "Sets the idle frame border color"
+        ))
+        .arg(color_arg!(
+            "frame_border_success_color",
+            "frame-border-success-color",
+            "Sets the success frame border color"
+        ))
+        .arg(color_arg!(
+            "frame_border_fail_color",
+            "frame-border-fail-color",
+            "Sets the fail frame border color"
+        ))
 }
 
 pub fn run_cli() -> NLockArgs {

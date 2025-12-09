@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use std::sync::atomic::Ordering;
+use std::{str::FromStr, sync::atomic::Ordering};
 
 use anyhow::{Result, anyhow};
 use cairo::SurfacePattern;
@@ -49,36 +49,45 @@ pub enum BackgroundType {
     Image,
 }
 
+impl FromStr for Rgba {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        let s = s.strip_prefix('#').unwrap_or(s);
+        let argb = match s.len() {
+            6 => {
+                let r =
+                    u8::from_str_radix(&s[0..2], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                let g =
+                    u8::from_str_radix(&s[2..4], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                let b =
+                    u8::from_str_radix(&s[4..6], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                Self { r, g, b, a: 1.0 }
+            }
+            8 => {
+                let r =
+                    u8::from_str_radix(&s[0..2], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                let g =
+                    u8::from_str_radix(&s[2..4], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                let b =
+                    u8::from_str_radix(&s[4..6], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                let a =
+                    u8::from_str_radix(&s[6..8], 16).map_err(|e| e.to_string())? as f64 / 255.0f64;
+                Self { r, g, b, a }
+            }
+            _ => return Err("expected RRGGBBAA or RRGGBB format".to_string()),
+        };
+        Ok(argb)
+    }
+}
+
 impl<'de> Deserialize<'de> for Rgba {
     fn deserialize<D>(d: D) -> std::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(d)?;
-        let s = s.strip_prefix('#').ok_or(de::Error::custom("missing #"))?;
-        let argb = match s.len() {
-            6 => {
-                let r =
-                    u8::from_str_radix(&s[0..2], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                let g =
-                    u8::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                let b =
-                    u8::from_str_radix(&s[4..6], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                Rgba { r, g, b, a: 1.0 }
-            }
-            8 => {
-                let r =
-                    u8::from_str_radix(&s[0..2], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                let g =
-                    u8::from_str_radix(&s[2..4], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                let b =
-                    u8::from_str_radix(&s[4..6], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                let a =
-                    u8::from_str_radix(&s[6..8], 16).map_err(de::Error::custom)? as f64 / 255.0f64;
-                Rgba { r, g, b, a }
-            }
-            _ => return Err(de::Error::custom("expected #RRGGBBAA or #RRGGBB format")),
-        };
+        let argb = Self::from_str(&s).map_err(de::Error::custom)?;
         Ok(argb)
     }
 }

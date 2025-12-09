@@ -19,6 +19,18 @@ const CONFIG_FILE_NAME: &str = "nlock.toml";
 const CONFIG_DIR_NAME: &str = "nlock";
 const SYSTEM_CONFIG_DIR: &str = "/etc";
 
+macro_rules! set_if_some {
+    ($target:expr, $opt:expr) => {
+        if let Some(val) = $opt {
+            $target = val;
+        }
+    };
+}
+
+pub trait LoadArgOverrides {
+    fn load_arg_overrides(&mut self, args: &NLockArgs);
+}
+
 #[derive(Default, Deserialize)]
 pub struct NLockConfig {
     #[serde(default)]
@@ -38,6 +50,12 @@ pub struct NLockConfig {
 
     #[serde(default)]
     pub image: NLockConfigImage,
+}
+
+impl LoadArgOverrides for NLockConfig {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        self.colors.load_arg_overrides(args);
+    }
 }
 
 #[derive(Deserialize)]
@@ -84,6 +102,18 @@ impl Default for NLockConfigColors {
             frame_border_success: default_frame_border_success_color(),
             frame_border_fail: default_frame_border_fail_color(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigColors {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some!(self.bg, args.colors.bg);
+        set_if_some!(self.text, args.colors.text);
+        set_if_some!(self.input_bg, args.colors.input_bg);
+        set_if_some!(self.input_border, args.colors.input_border);
+        set_if_some!(self.frame_border_idle, args.colors.frame_border_idle);
+        set_if_some!(self.frame_border_success, args.colors.frame_border_success);
+        set_if_some!(self.frame_border_fail, args.colors.frame_border_fail);
     }
 }
 
@@ -354,7 +384,10 @@ impl NLockConfig {
         }
 
         let config = builder.build()?;
+        let mut parsed_config = config.try_deserialize::<Self>()?;
 
-        Ok(config.try_deserialize::<Self>()?)
+        parsed_config.load_arg_overrides(args);
+
+        Ok(parsed_config)
     }
 }
