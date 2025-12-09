@@ -64,6 +64,7 @@ impl LoadArgOverrides for NLockConfig {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
         self.colors.load_arg_overrides(args);
         self.font.load_arg_overrides(args);
+        self.input.load_arg_overrides(args);
     }
 }
 
@@ -244,6 +245,19 @@ impl Default for NLockConfigInput {
             hide_when_empty: default_input_hide_when_empty(),
             fit_to_content: default_input_fit_to_content(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigInput {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some_string!(self.mask_char, &args.input.mask_char);
+        set_if_some!(self.width, args.input.width);
+        set_if_some!(self.padding_x, args.input.padding_x);
+        set_if_some!(self.padding_y, args.input.padding_y);
+        set_if_some!(self.radius, args.input.radius);
+        set_if_some!(self.border, args.input.border);
+        set_if_some!(self.hide_when_empty, args.input.hide_when_empty);
+        set_if_some!(self.fit_to_content, args.input.fit_to_content);
     }
 }
 

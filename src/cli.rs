@@ -49,6 +49,7 @@ pub struct NLockArgs {
     pub config_file: Option<String>,
     pub colors: NLockArgsColors,
     pub font: NLockArgsFont,
+    pub input: NLockArgsInput,
 }
 
 impl LoadArgMatches for NLockArgs {
@@ -64,6 +65,7 @@ impl LoadArgMatches for NLockArgs {
             config_file,
             colors: NLockArgsColors::load_arg_matches(matches),
             font: NLockArgsFont::load_arg_matches(matches),
+            input: NLockArgsInput::load_arg_matches(matches),
         }
     }
 }
@@ -88,19 +90,29 @@ macro_rules! enum_arg {
     };
 }
 
-macro_rules! generic_arg {
-    ($id:expr, $long:expr, $help:expr, $val:expr) => {
-        Arg::new($id).help($help).long($long).value_name($val)
+macro_rules! string_arg {
+    ($id:expr, $long:expr, $help:expr) => {
+        Arg::new($id).help($help).long($long).value_name("STRING")
     };
 }
 
 macro_rules! f64_arg {
-    ($id:expr, $long:expr, $help:expr, $val:expr) => {
+    ($id:expr, $long:expr, $help:expr) => {
         Arg::new($id)
             .help($help)
             .long($long)
-            .value_name($val)
+            .value_name("FLOAT")
             .value_parser(f64::from_str)
+    };
+}
+
+macro_rules! bool_arg {
+    ($id:expr, $long:expr, $help:expr) => {
+        Arg::new($id)
+            .help($help)
+            .long($long)
+            .value_name("BOOL")
+            .value_parser(bool::from_str)
     };
 }
 
@@ -155,6 +167,41 @@ impl LoadArgMatches for NLockArgsFont {
             family,
             slant,
             weight,
+        }
+    }
+}
+
+pub struct NLockArgsInput {
+    pub mask_char: Option<String>,
+    pub width: Option<f64>,
+    pub padding_x: Option<f64>,
+    pub padding_y: Option<f64>,
+    pub radius: Option<f64>,
+    pub border: Option<f64>,
+    pub hide_when_empty: Option<bool>,
+    pub fit_to_content: Option<bool>,
+}
+
+impl LoadArgMatches for NLockArgsInput {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let mask_char = args_get_value!(matches, String, "mask_char");
+        let width = args_get_value!(matches, f64, "input_width");
+        let padding_x = args_get_value!(matches, f64, "input_padding_x");
+        let padding_y = args_get_value!(matches, f64, "input_padding_y");
+        let radius = args_get_value!(matches, f64, "input_radius");
+        let border = args_get_value!(matches, f64, "input_border");
+        let hide_when_empty = args_get_value!(matches, bool, "input_hide_when_empty");
+        let fit_to_content = args_get_value!(matches, bool, "input_fit_to_content");
+
+        Self {
+            mask_char,
+            width,
+            padding_x,
+            padding_y,
+            radius,
+            border,
+            hide_when_empty,
+            fit_to_content,
         }
     }
 }
@@ -228,14 +275,12 @@ fn build_cli() -> Command {
         .arg(f64_arg!(
             "font_size",
             "font-size",
-            "Sets the font size, in points",
-            "SIZE"
+            "Sets the font size, in points"
         ))
-        .arg(generic_arg!(
+        .arg(string_arg!(
             "font_family",
             "font-family",
-            "Sets the font family",
-            "FAMILY"
+            "Sets the font family"
         ))
         .arg(enum_arg!(
             "font_slant",
@@ -250,6 +295,46 @@ fn build_cli() -> Command {
             "Sets the font weight",
             "WEIGHT",
             FontWeight
+        ))
+        .arg(string_arg!(
+            "mask_char",
+            "mask-char",
+            "Sets the mask character for the input box"
+        ))
+        .arg(f64_arg!(
+            "input_width",
+            "input-width",
+            "Sets the relative width of the input box"
+        ))
+        .arg(f64_arg!(
+            "input_padding_x",
+            "input-padding_x",
+            "Sets the relative horizontal padding of the input box"
+        ))
+        .arg(f64_arg!(
+            "input_padding_y",
+            "input-padding_y",
+            "Sets the relative vertical of the input box"
+        ))
+        .arg(f64_arg!(
+            "input_radius",
+            "input-radius",
+            "Sets the relative border radius of the input box"
+        ))
+        .arg(f64_arg!(
+            "input_border",
+            "input-border",
+            "Sets the border width of the input box"
+        ))
+        .arg(bool_arg!(
+            "input_hide_when_empty",
+            "input-hide-when-empty",
+            "Hide the input box when empty"
+        ))
+        .arg(bool_arg!(
+            "input_fit_to_content",
+            "input-fit-to-content",
+            "Resize the input box to fit password"
         ))
 }
 
