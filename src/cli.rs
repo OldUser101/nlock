@@ -2,7 +2,7 @@
 // Copyright (C) 2025, Nathan Gill
 
 use clap::{
-    Arg, Command, ValueEnum,
+    Arg, ArgMatches, Command, ValueEnum, arg,
     builder::{
         EnumValueParser, Styles,
         styling::{AnsiColor, Effects},
@@ -30,9 +30,28 @@ impl LogLevel {
     }
 }
 
+pub trait LoadArgMatches {
+    fn load_arg_matches(matches: ArgMatches) -> Self;
+}
+
 pub struct NLockArgs {
     pub log_level: LogLevel,
     pub config_file: Option<String>,
+}
+
+impl LoadArgMatches for NLockArgs {
+    fn load_arg_matches(matches: ArgMatches) -> Self {
+        let log_level = matches
+            .get_one("log-level")
+            .cloned()
+            .unwrap_or(LogLevel::Info);
+        let config_file: Option<String> = matches.get_one::<String>("config-file").cloned();
+
+        Self {
+            log_level,
+            config_file,
+        }
+    }
 }
 
 fn styles() -> Styles {
@@ -50,6 +69,7 @@ fn build_cli() -> Command {
         .about("Customisable, minimalist screen locker for Wayland")
         .version(env!("CARGO_PKG_VERSION"))
         .styles(styles())
+        .arg(arg!(--bg - color))
         .arg(
             Arg::new("log_level")
                 .help("Log level verbosity")
@@ -72,11 +92,5 @@ pub fn run_cli() -> NLockArgs {
     let cli = build_cli();
     let args = cli.get_matches();
 
-    let log_level = args.get_one("log_level").cloned().unwrap_or(LogLevel::Info);
-    let config_file: Option<String> = args.get_one::<String>("config_file").cloned();
-
-    NLockArgs {
-        log_level,
-        config_file,
-    }
+    NLockArgs::load_arg_matches(args)
 }
