@@ -11,7 +11,7 @@ use clap::{
     },
 };
 
-use crate::surface::Rgba;
+use crate::surface::{FontSlant, FontWeight, Rgba};
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
@@ -35,17 +35,24 @@ impl LogLevel {
 }
 
 pub trait LoadArgMatches {
-    fn load_arg_matches(matches: ArgMatches) -> Self;
+    fn load_arg_matches(matches: &ArgMatches) -> Self;
+}
+
+macro_rules! args_get_value {
+    ($matches:expr, $obj:ty, $name:expr) => {
+        $matches.get_one::<$obj>($name).cloned()
+    };
 }
 
 pub struct NLockArgs {
     pub log_level: LogLevel,
     pub config_file: Option<String>,
     pub colors: NLockArgsColors,
+    pub font: NLockArgsFont,
 }
 
 impl LoadArgMatches for NLockArgs {
-    fn load_arg_matches(matches: ArgMatches) -> Self {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
         let log_level = matches
             .get_one::<LogLevel>("log_level")
             .cloned()
@@ -56,14 +63,9 @@ impl LoadArgMatches for NLockArgs {
             log_level,
             config_file,
             colors: NLockArgsColors::load_arg_matches(matches),
+            font: NLockArgsFont::load_arg_matches(matches),
         }
     }
-}
-
-macro_rules! args_get_color {
-    ($matches:expr, $name:expr) => {
-        $matches.get_one::<Rgba>($name).cloned()
-    };
 }
 
 macro_rules! color_arg {
@@ -73,6 +75,32 @@ macro_rules! color_arg {
             .long($long)
             .value_name("COLOR")
             .value_parser(Rgba::from_str)
+    };
+}
+
+macro_rules! enum_arg {
+    ($id:expr, $long:expr, $help:expr, $val:expr, $t:ty) => {
+        Arg::new($id)
+            .help($help)
+            .long($long)
+            .value_name($val)
+            .value_parser(EnumValueParser::<$t>::new())
+    };
+}
+
+macro_rules! generic_arg {
+    ($id:expr, $long:expr, $help:expr, $val:expr) => {
+        Arg::new($id).help($help).long($long).value_name($val)
+    };
+}
+
+macro_rules! f64_arg {
+    ($id:expr, $long:expr, $help:expr, $val:expr) => {
+        Arg::new($id)
+            .help($help)
+            .long($long)
+            .value_name($val)
+            .value_parser(f64::from_str)
     };
 }
 
@@ -87,14 +115,14 @@ pub struct NLockArgsColors {
 }
 
 impl LoadArgMatches for NLockArgsColors {
-    fn load_arg_matches(matches: ArgMatches) -> Self {
-        let bg = args_get_color!(matches, "bg_color");
-        let text = args_get_color!(matches, "text_color");
-        let input_bg = args_get_color!(matches, "input_bg_color");
-        let input_border = args_get_color!(matches, "input_border_color");
-        let frame_border_idle = args_get_color!(matches, "frame_border_idle_color");
-        let frame_border_success = args_get_color!(matches, "frame_border_success_color");
-        let frame_border_fail = args_get_color!(matches, "frame_border_fail_color");
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let bg = args_get_value!(matches, Rgba, "bg_color");
+        let text = args_get_value!(matches, Rgba, "text_color");
+        let input_bg = args_get_value!(matches, Rgba, "input_bg_color");
+        let input_border = args_get_value!(matches, Rgba, "input_border_color");
+        let frame_border_idle = args_get_value!(matches, Rgba, "frame_border_idle_color");
+        let frame_border_success = args_get_value!(matches, Rgba, "frame_border_success_color");
+        let frame_border_fail = args_get_value!(matches, Rgba, "frame_border_fail_color");
 
         Self {
             bg,
@@ -104,6 +132,29 @@ impl LoadArgMatches for NLockArgsColors {
             frame_border_idle,
             frame_border_success,
             frame_border_fail,
+        }
+    }
+}
+
+pub struct NLockArgsFont {
+    pub size: Option<f64>,
+    pub family: Option<String>,
+    pub slant: Option<FontSlant>,
+    pub weight: Option<FontWeight>,
+}
+
+impl LoadArgMatches for NLockArgsFont {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let size = args_get_value!(matches, f64, "font_size");
+        let family = args_get_value!(matches, String, "font_family");
+        let slant = args_get_value!(matches, FontSlant, "font_slant");
+        let weight = args_get_value!(matches, FontWeight, "font_weight");
+
+        Self {
+            size,
+            family,
+            slant,
+            weight,
         }
     }
 }
@@ -174,11 +225,37 @@ fn build_cli() -> Command {
             "frame-border-fail-color",
             "Sets the fail frame border color"
         ))
+        .arg(f64_arg!(
+            "font_size",
+            "font-size",
+            "Sets the font size, in points",
+            "SIZE"
+        ))
+        .arg(generic_arg!(
+            "font_family",
+            "font-family",
+            "Sets the font family",
+            "FAMILY"
+        ))
+        .arg(enum_arg!(
+            "font_slant",
+            "font-slant",
+            "Sets the font slant",
+            "SLANT",
+            FontSlant
+        ))
+        .arg(enum_arg!(
+            "font_weight",
+            "font-weight",
+            "Sets the font weight",
+            "WEIGHT",
+            FontWeight
+        ))
 }
 
 pub fn run_cli() -> NLockArgs {
     let cli = build_cli();
     let args = cli.get_matches();
 
-    NLockArgs::load_arg_matches(args)
+    NLockArgs::load_arg_matches(&args)
 }

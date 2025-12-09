@@ -5,6 +5,7 @@ use std::{str::FromStr, sync::atomic::Ordering};
 
 use anyhow::{Result, anyhow};
 use cairo::SurfacePattern;
+use clap::ValueEnum;
 use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
@@ -42,7 +43,7 @@ impl Default for Rgba {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum BackgroundType {
     Color,
@@ -92,7 +93,7 @@ impl<'de> Deserialize<'de> for Rgba {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Copy, Clone, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum FontSlant {
     Normal,
@@ -110,7 +111,7 @@ impl From<FontSlant> for cairo::FontSlant {
     }
 }
 
-#[derive(Debug, Deserialize, Copy, Clone)]
+#[derive(Debug, Deserialize, Copy, Clone, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum FontWeight {
     Normal,

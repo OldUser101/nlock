@@ -27,6 +27,14 @@ macro_rules! set_if_some {
     };
 }
 
+macro_rules! set_if_some_string {
+    ($target:expr, $opt:expr) => {
+        if let Some(val) = $opt {
+            $target = val.to_string();
+        }
+    };
+}
+
 pub trait LoadArgOverrides {
     fn load_arg_overrides(&mut self, args: &NLockArgs);
 }
@@ -55,6 +63,7 @@ pub struct NLockConfig {
 impl LoadArgOverrides for NLockConfig {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
         self.colors.load_arg_overrides(args);
+        self.font.load_arg_overrides(args);
     }
 }
 
@@ -168,6 +177,15 @@ impl Default for NLockConfigFont {
             slant: default_font_slant(),
             weight: default_font_weight(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigFont {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some!(self.size, args.font.size);
+        set_if_some_string!(self.family, &args.font.family);
+        set_if_some!(self.slant, args.font.slant);
+        set_if_some!(self.weight, args.font.weight);
     }
 }
 
