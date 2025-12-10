@@ -65,6 +65,7 @@ impl LoadArgOverrides for NLockConfig {
         self.colors.load_arg_overrides(args);
         self.font.load_arg_overrides(args);
         self.input.load_arg_overrides(args);
+        self.frame.load_arg_overrides(args);
     }
 }
 
@@ -304,6 +305,13 @@ impl Default for NLockConfigFrame {
             border: default_frame_border(),
             radius: default_frame_radius(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigFrame {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some!(self.border, args.frame.border);
+        set_if_some!(self.radius, args.frame.radius);
     }
 }
 

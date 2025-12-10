@@ -50,6 +50,7 @@ pub struct NLockArgs {
     pub colors: NLockArgsColors,
     pub font: NLockArgsFont,
     pub input: NLockArgsInput,
+    pub frame: NLockArgsFrame,
 }
 
 impl LoadArgMatches for NLockArgs {
@@ -66,6 +67,7 @@ impl LoadArgMatches for NLockArgs {
             colors: NLockArgsColors::load_arg_matches(matches),
             font: NLockArgsFont::load_arg_matches(matches),
             input: NLockArgsInput::load_arg_matches(matches),
+            frame: NLockArgsFrame::load_arg_matches(matches),
         }
     }
 }
@@ -206,6 +208,20 @@ impl LoadArgMatches for NLockArgsInput {
     }
 }
 
+pub struct NLockArgsFrame {
+    pub border: Option<f64>,
+    pub radius: Option<f64>,
+}
+
+impl LoadArgMatches for NLockArgsFrame {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let border = args_get_value!(matches, f64, "frame_border");
+        let radius = args_get_value!(matches, f64, "frame_radius");
+
+        Self { border, radius }
+    }
+}
+
 fn styles() -> Styles {
     Styles::styled()
         .header(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
@@ -335,6 +351,16 @@ fn build_cli() -> Command {
             "input_fit_to_content",
             "input-fit-to-content",
             "Resize the input box to fit password"
+        ))
+        .arg(f64_arg!(
+            "frame_radius",
+            "frame-radius",
+            "Sets the border radius of the frame"
+        ))
+        .arg(f64_arg!(
+            "frame_border",
+            "frame-border",
+            "Sets the border width of the frame"
         ))
 }
 
