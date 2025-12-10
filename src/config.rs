@@ -66,6 +66,7 @@ impl LoadArgOverrides for NLockConfig {
         self.font.load_arg_overrides(args);
         self.input.load_arg_overrides(args);
         self.frame.load_arg_overrides(args);
+        self.general.load_arg_overrides(args);
     }
 }
 
@@ -342,6 +343,14 @@ impl Default for NLockConfigGeneral {
             hide_cursor: default_hide_cursor(),
             bg_type: default_bg_type(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigGeneral {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some!(self.pwd_allow_empty, args.general.pwd_allow_empty);
+        set_if_some!(self.hide_cursor, args.general.hide_cursor);
+        set_if_some!(self.bg_type, args.general.bg_type);
     }
 }
 

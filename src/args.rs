@@ -11,7 +11,7 @@ use clap::{
     },
 };
 
-use crate::surface::{FontSlant, FontWeight, Rgba};
+use crate::surface::{BackgroundType, FontSlant, FontWeight, Rgba};
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
@@ -51,6 +51,7 @@ pub struct NLockArgs {
     pub font: NLockArgsFont,
     pub input: NLockArgsInput,
     pub frame: NLockArgsFrame,
+    pub general: NLockArgsGeneral,
 }
 
 impl LoadArgMatches for NLockArgs {
@@ -68,6 +69,7 @@ impl LoadArgMatches for NLockArgs {
             font: NLockArgsFont::load_arg_matches(matches),
             input: NLockArgsInput::load_arg_matches(matches),
             frame: NLockArgsFrame::load_arg_matches(matches),
+            general: NLockArgsGeneral::load_arg_matches(matches),
         }
     }
 }
@@ -222,6 +224,26 @@ impl LoadArgMatches for NLockArgsFrame {
     }
 }
 
+pub struct NLockArgsGeneral {
+    pub pwd_allow_empty: Option<bool>,
+    pub hide_cursor: Option<bool>,
+    pub bg_type: Option<BackgroundType>,
+}
+
+impl LoadArgMatches for NLockArgsGeneral {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let pwd_allow_empty = args_get_value!(matches, bool, "pwd_allow_empty");
+        let hide_cursor = args_get_value!(matches, bool, "hide_cursor");
+        let bg_type = args_get_value!(matches, BackgroundType, "bg_type");
+
+        Self {
+            pwd_allow_empty,
+            hide_cursor,
+            bg_type,
+        }
+    }
+}
+
 fn styles() -> Styles {
     Styles::styled()
         .header(AnsiColor::BrightGreen.on_default().effects(Effects::BOLD))
@@ -361,6 +383,23 @@ fn build_cli() -> Command {
             "frame_border",
             "frame-border",
             "Sets the border width of the frame"
+        ))
+        .arg(bool_arg!(
+            "pwd_allow_empty",
+            "allow-empty-password",
+            "Validate empty passwords"
+        ))
+        .arg(bool_arg!(
+            "hide_cursor",
+            "hide-cursor",
+            "Hide the mouse cursor"
+        ))
+        .arg(enum_arg!(
+            "bg_type",
+            "bg-type",
+            "Sets the background type",
+            "BACKGROUND TYPE",
+            BackgroundType
         ))
 }
 
