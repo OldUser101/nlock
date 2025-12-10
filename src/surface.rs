@@ -439,6 +439,11 @@ impl NLockSurface {
             // The overlay surface should be able to update independently
             subsurface.set_desync();
 
+            // Pass all input to the main surface, this feels a bit hacky
+            let region = compositor.create_region(qh, ());
+            region.add(0, 0, 0, 0);
+            ov_surface.set_input_region(Some(&region));
+
             self.bg_surface = Some(bg_surface);
             self.ov_surface = Some(ov_surface);
             self.subsurface = Some(subsurface);

@@ -12,7 +12,7 @@ use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
-use wayland_client::protocol::{wl_subcompositor, wl_subsurface};
+use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
@@ -270,6 +270,7 @@ delegate_noop!(NLockState: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
 delegate_noop!(NLockState: ignore wl_callback::WlCallback);
 delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
+delegate_noop!(NLockState: ignore wl_region::WlRegion);
 
 impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
     fn event(
