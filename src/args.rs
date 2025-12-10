@@ -381,7 +381,7 @@ fn build_cli() -> Command {
         .arg(f64_arg!(
             "input_padding_y",
             "input-padding_y",
-            "Sets the relative vertical of the input box"
+            "Sets the relative vertical padding of the input box"
         ))
         .arg(f64_arg!(
             "input_radius",
