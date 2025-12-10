@@ -35,6 +35,14 @@ macro_rules! set_if_some_string {
     };
 }
 
+macro_rules! set_if_some_path {
+    ($target:expr, $opt:expr) => {
+        if let Some(val) = $opt {
+            $target = val.clone();
+        }
+    };
+}
+
 pub trait LoadArgOverrides {
     fn load_arg_overrides(&mut self, args: &NLockArgs);
 }
@@ -67,6 +75,7 @@ impl LoadArgOverrides for NLockConfig {
         self.input.load_arg_overrides(args);
         self.frame.load_arg_overrides(args);
         self.general.load_arg_overrides(args);
+        self.image.load_arg_overrides(args);
     }
 }
 
@@ -381,6 +390,13 @@ impl Default for NLockConfigImage {
             path: default_image_path(),
             scale: default_image_scale(),
         }
+    }
+}
+
+impl LoadArgOverrides for NLockConfigImage {
+    fn load_arg_overrides(&mut self, args: &NLockArgs) {
+        set_if_some_path!(self.path, &args.image.path);
+        set_if_some!(self.scale, args.image.scale);
     }
 }
 

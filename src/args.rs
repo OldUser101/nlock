@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use std::str::FromStr;
+use std::{path::PathBuf, str::FromStr};
 
 use clap::{
     Arg, ArgMatches, Command, ValueEnum,
@@ -11,7 +11,10 @@ use clap::{
     },
 };
 
-use crate::surface::{BackgroundType, FontSlant, FontWeight, Rgba};
+use crate::{
+    image::BackgroundImageScale,
+    surface::{BackgroundType, FontSlant, FontWeight, Rgba},
+};
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
@@ -52,6 +55,7 @@ pub struct NLockArgs {
     pub input: NLockArgsInput,
     pub frame: NLockArgsFrame,
     pub general: NLockArgsGeneral,
+    pub image: NLockArgsImage,
 }
 
 impl LoadArgMatches for NLockArgs {
@@ -70,6 +74,7 @@ impl LoadArgMatches for NLockArgs {
             input: NLockArgsInput::load_arg_matches(matches),
             frame: NLockArgsFrame::load_arg_matches(matches),
             general: NLockArgsGeneral::load_arg_matches(matches),
+            image: NLockArgsImage::load_arg_matches(matches),
         }
     }
 }
@@ -97,6 +102,16 @@ macro_rules! enum_arg {
 macro_rules! string_arg {
     ($id:expr, $long:expr, $help:expr) => {
         Arg::new($id).help($help).long($long).value_name("STRING")
+    };
+}
+
+macro_rules! path_arg {
+    ($id:expr, $long:expr, $help:expr) => {
+        Arg::new($id)
+            .help($help)
+            .long($long)
+            .value_name("PATH")
+            .value_parser(PathBuf::from_str)
     };
 }
 
@@ -241,6 +256,20 @@ impl LoadArgMatches for NLockArgsGeneral {
             hide_cursor,
             bg_type,
         }
+    }
+}
+
+pub struct NLockArgsImage {
+    pub path: Option<PathBuf>,
+    pub scale: Option<BackgroundImageScale>,
+}
+
+impl LoadArgMatches for NLockArgsImage {
+    fn load_arg_matches(matches: &ArgMatches) -> Self {
+        let path = args_get_value!(matches, PathBuf, "image_path");
+        let scale = args_get_value!(matches, BackgroundImageScale, "image_scale");
+
+        Self { path, scale }
     }
 }
 
@@ -400,6 +429,18 @@ fn build_cli() -> Command {
             "Sets the background type",
             "BACKGROUND TYPE",
             BackgroundType
+        ))
+        .arg(path_arg!(
+            "image_path",
+            "image-path",
+            "Path to background image"
+        ))
+        .arg(enum_arg!(
+            "image_scale",
+            "image-scale",
+            "Sets the image scaling mode",
+            "SCALE MODE",
+            BackgroundImageScale
         ))
 }
 

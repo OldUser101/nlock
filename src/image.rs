@@ -3,10 +3,11 @@
 
 use anyhow::{Result, anyhow};
 use cairo::{Format, ImageSurface};
+use clap::ValueEnum;
 use gdk_pixbuf::Pixbuf;
 use serde::Deserialize;
 
-#[derive(Deserialize, Copy, Clone, PartialEq)]
+#[derive(Deserialize, Copy, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum BackgroundImageScale {
     Stretch,
