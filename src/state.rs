@@ -12,7 +12,7 @@ use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
-use wayland_client::protocol::wl_subcompositor;
+use wayland_client::protocol::{wl_subcompositor, wl_subsurface};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
@@ -266,6 +266,7 @@ delegate_noop!(NLockState: ignore wl_compositor::WlCompositor);
 delegate_noop!(NLockState: ignore wl_subcompositor::WlSubcompositor);
 delegate_noop!(NLockState: ignore wl_shm::WlShm);
 delegate_noop!(NLockState: ignore wl_surface::WlSurface);
+delegate_noop!(NLockState: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
 delegate_noop!(NLockState: ignore wl_callback::WlCallback);
 delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
@@ -325,10 +326,15 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 state.surfaces[*data].output_scale = factor;
             }
             wl_output::Event::Done => {
-                if let (Some(compositor), Some(session_lock)) =
-                    (&state.compositor, &state.session_lock)
+                if let (Some(compositor), Some(subcompositor), Some(session_lock)) =
+                    (&state.compositor, &state.subcompositor, &state.session_lock)
                 {
-                    state.surfaces[*data].create_surface(compositor, session_lock, qh);
+                    state.surfaces[*data].create_surface(
+                        compositor,
+                        subcompositor,
+                        session_lock,
+                        qh,
+                    );
                 }
             }
             _ => {}
