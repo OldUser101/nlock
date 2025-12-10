@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+pub mod args;
 pub mod auth;
 pub mod buffer;
 pub mod config;
@@ -14,6 +15,7 @@ pub mod util;
 use std::sync::atomic::Ordering;
 
 use crate::{
+    args::run_cli,
     auth::{AuthConfig, AuthRequest, run_auth_loop},
     config::NLockConfig,
     state::NLockState,
@@ -88,15 +90,17 @@ async fn start(config: NLockConfig) -> Result<()> {
 
 #[tokio::main()]
 async fn main() {
+    let args = run_cli();
+
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(tracing::Level::INFO)
+        .with_max_level(args.log_level.to_level())
         .init();
 
     let now = chrono::Local::now();
     debug!("nlock started at {}", now.to_rfc3339());
 
-    match NLockConfig::load() {
+    match NLockConfig::load(&args) {
         Ok(cfg) => {
             if let Err(e) = start(cfg).await {
                 error!("{:#?}", e);
