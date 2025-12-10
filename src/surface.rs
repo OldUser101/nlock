@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
 use clap::ValueEnum;
 use serde::{Deserialize, de};
-use tracing::{debug, warn};
+use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
     protocol::{wl_compositor, wl_output, wl_shm, wl_subcompositor, wl_subsurface, wl_surface},
@@ -329,14 +329,19 @@ impl NLockSurface {
         Ok(())
     }
 
-    fn configure_cairo_init(&self, context: &mut cairo::Context) -> Result<()> {
-        context.set_antialias(cairo::Antialias::Best);
-
+    fn clear_background(&self, context: &cairo::Context) -> Result<()> {
         context.save()?;
         context.set_operator(cairo::Operator::Source);
         context.set_source_rgba(0.0, 0.0, 0.0, 0.0);
         context.paint()?;
         context.restore()?;
+
+        Ok(())
+    }
+
+    fn configure_cairo_init(&self, context: &mut cairo::Context) -> Result<()> {
+        context.set_antialias(cairo::Antialias::Best);
+        self.clear_background(context)?;
         context.identity_matrix();
 
         Ok(())
@@ -575,6 +580,9 @@ impl NLockSurface {
         let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
 
         self.configure_cairo_font(config, context)?;
+
+        // Wipe the buffer clean first to avoid artifacts
+        self.clear_background(context)?;
 
         // Draw border colour
         context.save()?;
