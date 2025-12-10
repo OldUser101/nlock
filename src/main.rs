@@ -54,6 +54,10 @@ async fn start(config: NLockConfig) -> Result<()> {
         bail!("Missing WlCompositor");
     }
 
+    if state.subcompositor.is_none() {
+        bail!("Missing WlSubcompositor");
+    }
+
     if state.shm.is_none() {
         bail!("Missing WlShm");
     }

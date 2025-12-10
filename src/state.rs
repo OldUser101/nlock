@@ -12,6 +12,7 @@ use nix::sys::{epoll::Epoll, timerfd::TimerFd};
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
+use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
     protocol::{
@@ -43,6 +44,7 @@ pub struct NLockState {
     pub display: wl_display::WlDisplay,
     pub registry: Option<wl_registry::WlRegistry>,
     pub compositor: Option<wl_compositor::WlCompositor>,
+    pub subcompositor: Option<wl_subcompositor::WlSubcompositor>,
     pub shm: Option<wl_shm::WlShm>,
     pub r_seat: Option<wl_seat::WlSeat>,
     pub session_lock_manager: Option<ext_session_lock_manager_v1::ExtSessionLockManagerV1>,
@@ -74,6 +76,7 @@ impl NLockState {
             display,
             registry: None,
             compositor: None,
+            subcompositor: None,
             shm: None,
             r_seat: None,
             session_lock_manager: None,
@@ -218,6 +221,15 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                         registry.bind::<wl_compositor::WlCompositor, _, _>(name, version, qh, ());
                     state.compositor = Some(compositor);
                 }
+                "wl_subcompositor" => {
+                    let subcompositor = registry.bind::<wl_subcompositor::WlSubcompositor, _, _>(
+                        name,
+                        version,
+                        qh,
+                        (),
+                    );
+                    state.subcompositor = Some(subcompositor);
+                }
                 "wl_shm" => {
                     let shm = registry.bind::<wl_shm::WlShm, _, _>(name, version, qh, ());
                     state.shm = Some(shm);
@@ -251,11 +263,14 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
 }
 
 delegate_noop!(NLockState: ignore wl_compositor::WlCompositor);
+delegate_noop!(NLockState: ignore wl_subcompositor::WlSubcompositor);
 delegate_noop!(NLockState: ignore wl_shm::WlShm);
 delegate_noop!(NLockState: ignore wl_surface::WlSurface);
+delegate_noop!(NLockState: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
 delegate_noop!(NLockState: ignore wl_callback::WlCallback);
 delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
+delegate_noop!(NLockState: ignore wl_region::WlRegion);
 
 impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
     fn event(
@@ -312,10 +327,15 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 state.surfaces[*data].output_scale = factor;
             }
             wl_output::Event::Done => {
-                if let (Some(compositor), Some(session_lock)) =
-                    (&state.compositor, &state.session_lock)
+                if let (Some(compositor), Some(subcompositor), Some(session_lock)) =
+                    (&state.compositor, &state.subcompositor, &state.session_lock)
                 {
-                    state.surfaces[*data].create_surface(compositor, session_lock, qh);
+                    state.surfaces[*data].create_surface(
+                        compositor,
+                        subcompositor,
+                        session_lock,
+                        qh,
+                    );
                 }
             }
             _ => {}

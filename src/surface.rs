@@ -3,14 +3,14 @@
 
 use std::{str::FromStr, sync::atomic::Ordering};
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
 use clap::ValueEnum;
 use serde::{Deserialize, de};
 use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
-    protocol::{wl_compositor, wl_output, wl_shm, wl_surface},
+    protocol::{wl_compositor, wl_output, wl_shm, wl_subcompositor, wl_subsurface, wl_surface},
 };
 use wayland_protocols::ext::session_lock::v1::client::{
     ext_session_lock_surface_v1, ext_session_lock_v1,
@@ -129,6 +129,8 @@ impl From<FontWeight> for cairo::FontWeight {
 
 pub struct NLockSurface {
     pub created: bool,
+    // Background rendering is expensive, only do it once.
+    pub bg_rendered: bool,
     pub index: usize,
     pub output_name: Option<String>,
     pub output_scale: i32,
@@ -138,7 +140,9 @@ pub struct NLockSurface {
     pub physical_height: Option<i32>,
     pub dpi: Option<f64>,
     pub subpixel: Option<WEnum<wl_output::Subpixel>>,
-    pub surface: Option<wl_surface::WlSurface>,
+    pub ov_surface: Option<wl_surface::WlSurface>,
+    pub bg_surface: Option<wl_surface::WlSurface>,
+    pub subsurface: Option<wl_subsurface::WlSubsurface>,
     pub output: wl_output::WlOutput,
     pub lock_surface: Option<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1>,
     pub buffers: Vec<NLockBuffer>,
@@ -148,6 +152,7 @@ impl NLockSurface {
     pub fn new(output: wl_output::WlOutput, index: usize) -> Self {
         Self {
             created: false,
+            bg_rendered: false,
             index,
             output_name: None,
             output_scale: 1,
@@ -157,7 +162,9 @@ impl NLockSurface {
             physical_height: None,
             dpi: None,
             subpixel: None,
-            surface: None,
+            ov_surface: None,
+            bg_surface: None,
+            subsurface: None,
             output,
             lock_surface: None,
             buffers: Vec::new(),
@@ -267,11 +274,30 @@ impl NLockSurface {
     }
 
     fn render_background(
-        &self,
+        &mut self,
         config: &NLockConfig,
         bg_image: Option<&cairo::ImageSurface>,
-        context: &cairo::Context,
+        shm: &wl_shm::WlShm,
+        qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
+        let idx = match self.get_buffer_idx(shm, qh) {
+            Some(i) => i,
+            None => {
+                bail!("Failed to obtain buffer for rendering background");
+            }
+        };
+
+        let surface = match &self.bg_surface {
+            Some(s) => s,
+            None => {
+                bail!("wl_surface not set when attempting background render");
+            }
+        };
+
+        let buffer = &self.buffers[idx];
+        let wl_buffer = &buffer.buffer;
+
+        let context = &buffer.context;
         context.save()?;
 
         match config.general.bg_type {
@@ -292,17 +318,30 @@ impl NLockSurface {
         context.paint()?;
         context.restore()?;
 
+        surface.set_buffer_scale(self.output_scale);
+        surface.attach(Some(wl_buffer), 0, 0);
+        surface.damage(0, 0, i32::MAX, i32::MAX);
+        surface.commit();
+
+        // Avoid rendering the background again
+        self.bg_rendered = true;
+
+        Ok(())
+    }
+
+    fn clear_background(&self, context: &cairo::Context) -> Result<()> {
+        context.save()?;
+        context.set_operator(cairo::Operator::Source);
+        context.set_source_rgba(0.0, 0.0, 0.0, 0.0);
+        context.paint()?;
+        context.restore()?;
+
         Ok(())
     }
 
     fn configure_cairo_init(&self, context: &mut cairo::Context) -> Result<()> {
         context.set_antialias(cairo::Antialias::Best);
-
-        context.save()?;
-        context.set_operator(cairo::Operator::Source);
-        context.set_source_rgb(0.0, 0.0, 0.0);
-        context.paint()?;
-        context.restore()?;
+        self.clear_background(context)?;
         context.identity_matrix();
 
         Ok(())
@@ -388,17 +427,36 @@ impl NLockSurface {
     pub fn create_surface(
         &mut self,
         compositor: &wl_compositor::WlCompositor,
+        subcompositor: &wl_subcompositor::WlSubcompositor,
         session_lock: &ext_session_lock_v1::ExtSessionLockV1,
         qh: &QueueHandle<NLockState>,
     ) {
         if !self.created {
-            let surface = compositor.create_surface(qh, ());
-            self.surface = Some(surface);
+            let bg_surface = compositor.create_surface(qh, ());
+            let ov_surface = compositor.create_surface(qh, ());
+            let subsurface = subcompositor.get_subsurface(&ov_surface, &bg_surface, qh, ());
 
-            if let Some(surface) = &self.surface {
+            // The overlay surface should be able to update independently
+            subsurface.set_desync();
+
+            // Pass all input to the main surface, this feels a bit hacky
+            let region = compositor.create_region(qh, ());
+            region.add(0, 0, 0, 0);
+            ov_surface.set_input_region(Some(&region));
+
+            self.bg_surface = Some(bg_surface);
+            self.ov_surface = Some(ov_surface);
+            self.subsurface = Some(subsurface);
+
+            if let Some(surface) = &self.bg_surface
+                && self.ov_surface.is_some()
+                && self.subsurface.is_some()
+            {
                 let lock_surface =
                     session_lock.get_lock_surface(surface, &self.output, qh, self.index);
                 self.lock_surface = Some(lock_surface);
+            } else {
+                warn!("Failed to create background, overlay, or sub surface");
             }
 
             self.created = true;
@@ -457,19 +515,45 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
+        // Render background if needed
+        if !self.bg_rendered
+            && let Err(e) = self.render_background(config, bg_image, shm, qh)
+        {
+            warn!("Error while rendering background: {e}");
+        }
+
+        // Always render the overlay
+        if let Err(e) = self.render_overlay(config, auth_state, password_len, shm, qh) {
+            warn!("Error while rendering overlay: {e}");
+        }
+    }
+
+    fn render_overlay(
+        &mut self,
+        config: &NLockConfig,
+        auth_state: AuthState,
+        password_len: usize,
+        shm: &wl_shm::WlShm,
+        qh: &QueueHandle<NLockState>,
+    ) -> Result<()> {
         let idx = match self.get_buffer_idx(shm, qh) {
             Some(i) => i,
             None => {
-                warn!("Failed to obtain buffer for rendering");
-                return;
+                bail!("Failed to obtain buffer for rendering overlay");
             }
         };
 
-        let surface = match &self.surface {
+        let surface = match &self.ov_surface {
             Some(s) => s,
             None => {
-                warn!("wl_surface not set when attempting render");
-                return;
+                bail!("wl_surface not set when attempting overlay render");
+            }
+        };
+
+        let subsurface = match &self.subsurface {
+            Some(s) => s,
+            None => {
+                bail!("wl_subsurface not set when attempting overlay render");
             }
         };
 
@@ -477,29 +561,33 @@ impl NLockSurface {
         let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
-        if let Err(e) = self.render_frame(config, auth_state, password_len, bg_image, context) {
-            warn!("Error while rendering: {e}");
-        }
+        self.draw_overlay(config, auth_state, password_len, context)?;
+
+        // Ensure subsurface position is always set to 0,0
+        subsurface.set_position(0, 0);
 
         surface.set_buffer_scale(self.output_scale);
         surface.attach(Some(wl_buffer), 0, 0);
         surface.damage(0, 0, i32::MAX, i32::MAX);
         surface.commit();
+
+        Ok(())
     }
 
-    fn render_frame(
+    fn draw_overlay(
         &self,
         config: &NLockConfig,
         auth_state: AuthState,
         password_len: usize,
-        bg_image: Option<&cairo::ImageSurface>,
         context: &cairo::Context,
     ) -> Result<()> {
         let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
         let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
 
         self.configure_cairo_font(config, context)?;
-        self.render_background(config, bg_image, context)?;
+
+        // Wipe the buffer clean first to avoid artifacts
+        self.clear_background(context)?;
 
         // Draw border colour
         context.save()?;

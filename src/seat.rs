@@ -243,6 +243,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for NLockState {
         } = event
             && state.config.general.hide_cursor
         {
+            debug!("Received pointer enter event, cursor hidden");
             pointer.set_cursor(serial, None, 0, 0);
         }
     }
