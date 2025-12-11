@@ -3,6 +3,7 @@
 
 use nix::{
     fcntl::OFlag,
+    libc,
     sys::{
         mman::{shm_open, shm_unlink},
         stat::Mode,
@@ -41,4 +42,12 @@ pub fn open_shm() -> Option<OwnedFd> {
     }
 
     None
+}
+
+// This helper function just checks if an `std::io::Error` was an EINTR
+pub fn is_eintr(err: &std::io::Error) -> bool {
+    match err.raw_os_error() {
+        Some(code) => code == libc::EINTR,
+        None => false,
+    }
 }

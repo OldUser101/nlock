@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
 use gdk_pixbuf::Pixbuf;
+use mio::Poll;
 use nix::sys::eventfd::EventFd;
-use nix::sys::{epoll::Epoll, timerfd::TimerFd};
+use nix::sys::timerfd::TimerFd;
 use tokio::sync::{mpsc, oneshot};
 use tracing::debug;
 use tracing::{info, warn};
@@ -53,8 +54,8 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub epoll: Option<Epoll>,
-    pub timers: Vec<(TimerFd, u64)>,
+    pub poll: Option<Poll>,
+    pub timers: Vec<(TimerFd, usize)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
     pub auth_state: Arc<AtomicAuthState>,
     pub state_ev: Arc<EventFd>,
@@ -85,7 +86,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            epoll: None,
+            poll: None,
             timers: Vec::new(),
             auth_tx,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),

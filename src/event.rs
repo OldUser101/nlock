@@ -2,22 +2,21 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
+use mio::{Events, Interest, Poll, Token, unix::SourceFd};
 use nix::{
-    errno::Errno,
-    poll::PollTimeout,
-    sys::{
-        epoll::{Epoll, EpollCreateFlags, EpollEvent, EpollFlags},
-        timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
-    },
+    sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
     unistd::read,
 };
-use std::{os::fd::BorrowedFd, sync::atomic::Ordering};
-use wayland_client::EventQueue;
+use std::{
+    os::fd::{AsFd, AsRawFd, BorrowedFd},
+    sync::atomic::Ordering,
+};
+use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
-use crate::state::NLockState;
+use crate::{state::NLockState, util::is_eintr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(u64)]
+#[repr(usize)]
 pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
@@ -25,7 +24,7 @@ pub enum EventType {
 }
 
 impl EventType {
-    fn from_u64(value: u64) -> Result<Self> {
+    fn from_usize(value: usize) -> Result<Self> {
         match value {
             0 => Ok(Self::Wayland),
             1 => Ok(Self::KeyboardRepeat),
@@ -36,48 +35,37 @@ impl EventType {
     }
 }
 
-/// This guard structure is used to ensure the Wayland file descriptor (given by a `ReadEventsGuard` object).
-///
-/// This structure contains a reference to an `Epoll` object (probably from an `EventLoop`).
-/// The Wayland file descriptor is automatically removed from `Epoll` when dropped.
-struct WaylandFdCleanup<'a> {
-    epoll: &'a Epoll,
-    fd: BorrowedFd<'a>,
-}
-
-impl Drop for WaylandFdCleanup<'_> {
-    fn drop(&mut self) {
-        let _ = self.epoll.delete(self.fd);
-    }
-}
-
 impl NLockState {
-    pub fn set_timer(&mut self, id: u64, expiration: Expiration) -> Result<()> {
+    pub fn set_timer(&mut self, id: usize, expiration: Expiration) -> Result<()> {
         let repeat_timer = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())?;
         repeat_timer.set(expiration, TimerSetTimeFlags::empty())?;
 
-        let repeat_timer_ev = EpollEvent::new(EpollFlags::EPOLLIN, id);
-        let epoll = self
-            .epoll
-            .as_ref()
-            .ok_or(anyhow!("Epoll has not been created yet"))?;
-        epoll.add(&repeat_timer, repeat_timer_ev)?;
+        let mut repeat_timer_src = SourceFd(&repeat_timer.as_fd().as_raw_fd());
+
+        let poll = self
+            .poll
+            .as_mut()
+            .ok_or(anyhow!("Poll has not been created yet"))?;
+
+        poll.registry()
+            .register(&mut repeat_timer_src, Token(id), Interest::READABLE)?;
 
         self.timers.push((repeat_timer, id));
 
         Ok(())
     }
 
-    pub fn unset_timer(&mut self, id: u64) -> Result<()> {
-        let epoll = self
-            .epoll
-            .as_ref()
-            .ok_or(anyhow!("Epoll has not been created yet"))?;
+    pub fn unset_timer(&mut self, id: usize) -> Result<()> {
+        let poll = self
+            .poll
+            .as_mut()
+            .ok_or(anyhow!("Poll has not been created yet"))?;
 
         let mut i = 0;
         while i < self.timers.len() {
             if self.timers[i].1 == id {
-                epoll.delete(&self.timers[i].0)?;
+                poll.registry()
+                    .deregister(&mut SourceFd(&self.timers[i].0.as_fd().as_raw_fd()))?;
                 self.timers.swap_remove(i);
             } else {
                 i += 1;
@@ -87,56 +75,57 @@ impl NLockState {
         Ok(())
     }
 
-    fn setup_epoll(&mut self) -> Result<()> {
-        let epoll = Epoll::new(EpollCreateFlags::empty())?;
+    fn setup_poll(&mut self) -> Result<()> {
+        let poll = Poll::new()?;
 
-        let state_event = EpollEvent::new(EpollFlags::EPOLLIN, EventType::StateChanged as u64);
-        epoll.add(self.state_ev.clone(), state_event)?;
+        // Register the state event file descriptor
+        poll.registry().register(
+            &mut SourceFd(&self.state_ev.as_raw_fd()),
+            Token(EventType::StateChanged as usize),
+            Interest::READABLE,
+        )?;
 
-        self.epoll = Some(epoll);
+        self.poll = Some(poll);
         Ok(())
     }
 
-    pub fn event_loop_cycle(&mut self, event_queue: &mut EventQueue<NLockState>) -> Result<()> {
-        if self.epoll.is_none() {
-            self.setup_epoll()?;
-        }
+    fn poll_events(&mut self, events: &mut Events, wayland_sock_fd: BorrowedFd<'_>) -> Result<()> {
+        let mut wayland_sock_src = SourceFd(&wayland_sock_fd.as_raw_fd());
 
-        let mut events = [EpollEvent::empty(); 64];
+        let poll = self
+            .poll
+            .as_mut()
+            .ok_or(anyhow!("Poll has not been created yet"))?;
 
-        event_queue.flush()?;
-        event_queue.dispatch_pending(self)?;
+        {
+            // Register the Wayland file descriptor with the poll
+            poll.registry().register(
+                &mut wayland_sock_src,
+                Token(EventType::Wayland as usize),
+                Interest::READABLE,
+            )?;
 
-        let read_guard = event_queue
-            .prepare_read()
-            .ok_or(anyhow!("Failed to obtain Wayland event read guard"))?;
-        let wayland_sock_fd = read_guard.connection_fd();
-        let wayland_sock_ev = EpollEvent::new(EpollFlags::EPOLLIN, EventType::Wayland as u64);
-
-        let epoll = self
-            .epoll
-            .as_ref()
-            .ok_or(anyhow!("Epoll has not been created yet"))?;
-        epoll.add(wayland_sock_fd, wayland_sock_ev)?;
-
-        let n_events = {
-            let _cleanup_guard = WaylandFdCleanup {
-                fd: wayland_sock_fd,
-                epoll,
-            };
-
-            match epoll.wait(&mut events, PollTimeout::NONE) {
-                Ok(n) => n,
-                Err(Errno::EINTR) => 0,
+            match poll.poll(events, None) {
+                Ok(_) => {}
+                Err(e) if is_eintr(&e) => {}
                 Err(e) => return Err(anyhow!("Error during epoll: {e}")),
             }
-        };
 
-        let qh = event_queue.handle();
+            poll.registry().deregister(&mut wayland_sock_src)?;
+        }
 
+        Ok(())
+    }
+
+    fn process_events(
+        &mut self,
+        events: &Events,
+        read_guard: ReadEventsGuard,
+        event_queue: &mut EventQueue<NLockState>,
+    ) -> Result<()> {
         let mut wayland_sock_ready = false;
-        for event in &events[..n_events] {
-            match EventType::from_u64(event.data())? {
+        for event in events {
+            match EventType::from_usize(event.token().0)? {
                 EventType::Wayland => {
                     wayland_sock_ready = true;
                 }
@@ -144,7 +133,7 @@ impl NLockState {
                     if let Some(idx) = self
                         .timers
                         .iter()
-                        .position(|timer| timer.1 == EventType::KeyboardRepeat as u64)
+                        .position(|timer| timer.1 == EventType::KeyboardRepeat as usize)
                     {
                         let timer = &self.timers[idx];
                         let mut buf = [0u8; std::mem::size_of::<u64>()];
@@ -172,7 +161,11 @@ impl NLockState {
             std::mem::drop(read_guard);
         }
 
-        // Re-render if state was updated
+        Ok(())
+    }
+
+    fn re_render(&mut self, qh: &QueueHandle<NLockState>) {
+        // Re-render only if state was updated
         if self.state_changed.load(Ordering::Relaxed)
             && let Some(shm) = &self.shm
         {
@@ -185,12 +178,32 @@ impl NLockState {
                     self.password.len(),
                     self.background_image.as_ref(),
                     shm,
-                    &qh,
+                    qh,
                 );
             }
 
             self.state_changed.store(false, Ordering::Relaxed);
         }
+    }
+
+    pub fn event_loop_cycle(&mut self, event_queue: &mut EventQueue<NLockState>) -> Result<()> {
+        if self.poll.is_none() {
+            self.setup_poll()?;
+        }
+
+        let mut events = Events::with_capacity(64);
+
+        event_queue.flush()?;
+        event_queue.dispatch_pending(self)?;
+
+        let read_guard = event_queue
+            .prepare_read()
+            .ok_or(anyhow!("Failed to obtain Wayland event read guard"))?;
+        let wayland_sock_fd = read_guard.connection_fd();
+
+        self.poll_events(&mut events, wayland_sock_fd)?;
+        self.process_events(&events, read_guard, event_queue)?;
+        self.re_render(&event_queue.handle());
 
         Ok(())
     }
