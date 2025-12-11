@@ -3,7 +3,7 @@
 
 use anyhow::{Result, anyhow};
 use atomic_enum::atomic_enum;
-use pam_client::{Context, Flag, conv_mock::Conversation};
+use pam_rs::{Client, PamFlag};
 use tokio::sync::{mpsc, oneshot};
 use tracing::{info, warn};
 use zeroize::Zeroizing;
@@ -36,18 +36,18 @@ impl AuthConfig {
 }
 
 fn authenticate(config: &AuthConfig, username: String, password: Zeroizing<String>) -> Result<()> {
-    let mut context = Context::new(
-        "nlock",
-        None,
-        Conversation::with_credentials(username, password.as_str()),
-    )?;
+    let mut client = Client::with_password("nlock")?;
+    client
+        .conversation_mut()
+        .set_credentials(username, password.as_str());
 
-    let mut flags = Flag::empty();
+    let mut flags = PamFlag::None;
     if !config.allow_empty {
-        flags |= Flag::DISALLOW_NULL_AUTHTOK;
+        flags = PamFlag::Disallow_Null_AuthTok;
     }
 
-    context.authenticate(flags)?;
+    client.authenticate(flags)?;
+
     Ok(())
 }
 
