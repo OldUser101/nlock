@@ -13,7 +13,9 @@ the available configuration options (this might not be up-to-date).
 
 # General configuration options
 [general]
+# This value is only supported on Linux
 allowEmptyPassword = false      # allow a blank password to be validated
+
 hideCursor = true               # hide the mouse cursor
 backgroundType = "color"        # background type "color", or "image"
 
