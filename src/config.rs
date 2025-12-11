@@ -363,8 +363,12 @@ impl LoadArgOverrides for NLockConfigGeneral {
     }
 }
 
-fn default_pwd_allow_empty() -> bool {
-    false
+pub fn default_pwd_allow_empty() -> bool {
+    #[cfg(target_os = "linux")]
+    return false;
+
+    #[cfg(not(target_os = "linux"))]
+    return true;
 }
 
 fn default_hide_cursor() -> bool {

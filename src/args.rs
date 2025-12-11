@@ -247,7 +247,12 @@ pub struct NLockArgsGeneral {
 
 impl LoadArgMatches for NLockArgsGeneral {
     fn load_arg_matches(matches: &ArgMatches) -> Self {
+        #[cfg(target_os = "linux")]
         let pwd_allow_empty = args_get_value!(matches, bool, "pwd_allow_empty");
+
+        #[cfg(not(target_os = "linux"))]
+        let pwd_allow_empty = None;
+
         let hide_cursor = args_get_value!(matches, bool, "hide_cursor");
         let bg_type = args_get_value!(matches, BackgroundType, "bg_type");
 
@@ -284,7 +289,7 @@ fn styles() -> Styles {
 }
 
 fn build_cli() -> Command {
-    Command::new("nlock")
+    let command = Command::new("nlock")
         .about("Customisable, minimalist screen locker for Wayland")
         .version(env!("CARGO_PKG_VERSION"))
         .styles(styles())
@@ -414,11 +419,6 @@ fn build_cli() -> Command {
             "Sets the border width of the frame"
         ))
         .arg(bool_arg!(
-            "pwd_allow_empty",
-            "allow-empty-password",
-            "Validate empty passwords"
-        ))
-        .arg(bool_arg!(
             "hide_cursor",
             "hide-cursor",
             "Hide the mouse cursor"
@@ -441,7 +441,16 @@ fn build_cli() -> Command {
             "Sets the image scaling mode",
             "SCALE MODE",
             BackgroundImageScale
-        ))
+        ));
+
+    #[cfg(target_os = "linux")]
+    let command = command.arg(bool_arg!(
+        "pwd_allow_empty",
+        "allow-empty-password",
+        "Validate empty passwords"
+    ));
+
+    command
 }
 
 pub fn run_cli() -> NLockArgs {

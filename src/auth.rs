@@ -35,13 +35,17 @@ impl AuthConfig {
     }
 }
 
+#[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
 fn authenticate(config: &AuthConfig, username: String, password: Zeroizing<String>) -> Result<()> {
     let mut client = Client::with_password("nlock")?;
     client
         .conversation_mut()
         .set_credentials(username, password.as_str());
 
+    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
     let mut flags = PamFlag::None;
+
+    #[cfg(target_os = "linux")]
     if !config.allow_empty {
         flags = PamFlag::Disallow_Null_AuthTok;
     }

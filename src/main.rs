@@ -21,6 +21,9 @@ use crate::{
     state::NLockState,
 };
 
+#[cfg(not(target_os = "linux"))]
+use crate::config::default_pwd_allow_empty;
+
 use anyhow::{Result, bail};
 
 #[cfg_attr(debug_assertions, allow(unused_imports))]
@@ -108,6 +111,12 @@ async fn main() {
 
     match NLockConfig::load(&args) {
         Ok(cfg) => {
+            #[cfg(not(target_os = "linux"))]
+            if cfg.general.pwd_allow_empty != default_pwd_allow_empty() {
+                error!("Configuration value allowEmptyPassword is only valid on Linux!");
+                return;
+            }
+
             if let Err(e) = start(cfg).await {
                 error!("{:#?}", e);
             }
