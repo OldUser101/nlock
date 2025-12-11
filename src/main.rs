@@ -24,6 +24,7 @@ use crate::{
 use anyhow::{Result, bail};
 
 #[cfg_attr(debug_assertions, allow(unused_imports))]
+#[cfg(target_os = "linux")]
 use nix::sys::prctl;
 
 use tokio::sync::mpsc;
@@ -34,6 +35,7 @@ async fn start(config: NLockConfig) -> Result<()> {
     // Prevent ptrace from attaching to nlock
     // Only do this in release config
     #[cfg(not(debug_assertions))]
+    #[cfg(target_os = "linux")]
     prctl::set_dumpable(false)?;
 
     let conn = Connection::connect_to_env()?;
