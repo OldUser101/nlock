@@ -119,7 +119,7 @@ impl NLockState {
         }
 
         if self.seat.repeat_timer_set
-            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as u64)
+            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as usize)
         {
             return Err(e);
         } else {
@@ -136,7 +136,7 @@ impl NLockState {
             let repeat_rate_duration = Duration::from_millis(self.seat.repeat_rate as u64);
 
             self.set_timer(
-                EventType::KeyboardRepeat as u64,
+                EventType::KeyboardRepeat as usize,
                 Expiration::IntervalDelayed(
                     TimeSpec::from_duration(repeat_delay_duration),
                     TimeSpec::from_duration(repeat_rate_duration),
