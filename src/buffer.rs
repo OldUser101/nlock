@@ -107,10 +107,10 @@ impl Dispatch<wl_buffer::WlBuffer, Arc<Mutex<NLockBufferState>>> for NLockState 
         _: &wayland_client::Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_buffer::Event::Release = event {
-            if let Ok(mut state) = data.lock() {
-                state.in_use = false;
-            }
+        if let wl_buffer::Event::Release = event
+            && let Ok(mut state) = data.lock()
+        {
+            state.in_use = false;
         }
     }
 }
