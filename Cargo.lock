@@ -955,27 +955,27 @@ dependencies = [
 ]
 
 [[package]]
-name = "pam-macros"
-version = "0.0.3"
+name = "pam-rs"
+version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c94f3b9b97df3c6d4e51a14916639b24e02c7d15d1dba686ce9b1118277cb811"
+checksum = "6c9882f4752b64f1bf4cdbbc88c98fdae37c224e184e250992ffe741b762cbd1"
+dependencies = [
+ "libc",
+ "memchr",
+ "pam-rs-macros",
+ "pam-sys",
+ "uzers 0.11.3",
+]
+
+[[package]]
+name = "pam-rs-macros"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb687e22bbb768f1aaf54d8afbbc4cd38e73228c1f102ab686ad5c077f061409"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "pam-rs"
-version = "0.9.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1de5d552f65296cc3be5328bf165cde856100ba51acb445cb206d19a0817cf70"
-dependencies = [
- "libc",
- "memchr",
- "pam-macros",
- "pam-sys",
- "uzers 0.11.3",
 ]
 
 [[package]]
