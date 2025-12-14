@@ -325,6 +325,14 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 state.surfaces[*data].output_name = Some(name);
             }
             wl_output::Event::Scale { factor } => {
+                debug!(
+                    "Set output scale for '{}' to {factor}",
+                    state.surfaces[*data]
+                        .output_name
+                        .as_ref()
+                        .unwrap_or(&"".to_string())
+                );
+
                 state.surfaces[*data].output_scale = factor;
             }
             wl_output::Event::Done => {

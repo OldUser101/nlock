@@ -136,6 +136,8 @@ pub struct NLockSurface {
     pub output_scale: i32,
     pub width: Option<u32>,
     pub height: Option<u32>,
+    pub last_width: Option<u32>,
+    pub last_height: Option<u32>,
     pub physical_width: Option<i32>,
     pub physical_height: Option<i32>,
     pub dpi: Option<f64>,
@@ -158,6 +160,8 @@ impl NLockSurface {
             output_scale: 1,
             width: None,
             height: None,
+            last_width: None,
+            last_height: None,
             physical_width: None,
             physical_height: None,
             dpi: None,
@@ -318,7 +322,6 @@ impl NLockSurface {
         context.paint()?;
         context.restore()?;
 
-        surface.set_buffer_scale(self.output_scale);
         surface.attach(Some(wl_buffer), 0, 0);
         surface.damage(0, 0, i32::MAX, i32::MAX);
         surface.commit();
@@ -366,6 +369,28 @@ impl NLockSurface {
         Ok(())
     }
 
+    fn new_buffer(
+        &mut self,
+        width: u32,
+        height: u32,
+        shm: &wl_shm::WlShm,
+        qh: &QueueHandle<NLockState>,
+    ) -> Option<usize> {
+        let mut buf = NLockBuffer::new(
+            shm,
+            width as i32,
+            height as i32,
+            wl_shm::Format::Argb8888,
+            true,
+            qh,
+        )?;
+        self.configure_cairo_init(&mut buf.context).ok()?;
+
+        self.buffers.push(buf);
+
+        Some(self.buffers.len() - 1)
+    }
+
     fn get_buffer_idx(
         &mut self,
         shm: &wl_shm::WlShm,
@@ -374,6 +399,14 @@ impl NLockSurface {
         let width = self.width?;
         let height = self.height?;
 
+        // The surface size changed, new buffers needed
+        if let Some(last_width) = self.last_width
+            && let Some(last_height) = self.last_height
+            && (last_width != width || last_height != height)
+        {
+            return self.new_buffer(width, height, shm, qh);
+        }
+
         let index = self
             .buffers
             .iter()
@@ -381,21 +414,7 @@ impl NLockSurface {
 
         let idx = match index {
             Some(i) => i,
-            None => {
-                let mut buf = NLockBuffer::new(
-                    shm,
-                    width as i32,
-                    height as i32,
-                    wl_shm::Format::Argb8888,
-                    true,
-                    qh,
-                )?;
-                self.configure_cairo_init(&mut buf.context).ok()?;
-
-                self.buffers.push(buf);
-
-                self.buffers.len() - 1
-            }
+            None => self.new_buffer(width, height, shm, qh)?,
         };
 
         Some(idx)
@@ -526,6 +545,10 @@ impl NLockSurface {
         if let Err(e) = self.render_overlay(config, auth_state, password_len, shm, qh) {
             warn!("Error while rendering overlay: {e}");
         }
+
+        // Update last width and height to allow for resizing
+        self.last_width = self.width;
+        self.last_height = self.height;
     }
 
     fn render_overlay(
@@ -566,7 +589,6 @@ impl NLockSurface {
         // Ensure subsurface position is always set to 0,0
         subsurface.set_position(0, 0);
 
-        surface.set_buffer_scale(self.output_scale);
         surface.attach(Some(wl_buffer), 0, 0);
         surface.damage(0, 0, i32::MAX, i32::MAX);
         surface.commit();
