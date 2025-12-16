@@ -1,5 +1,7 @@
 # nlock
 
+[![CI](https://github.com/OldUser101/nlock/actions/workflows/rust.yml/badge.svg)](https://github.com/OldUser101/nlock/actions/workflows/rust.yml)
+
 nlock is a customisable, minimalist screen locker for Wayland compositors.
 nlock uses the `ext-session-lock-v1` protocol, and should be compatible with
 any compositor that correctly implements it.
