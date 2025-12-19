@@ -33,7 +33,7 @@ impl ImageSurfaceExt for ImageSurface {
     /// The API to do this was removed from GTK :(, so this is a version ported
     /// from swaylock, that essentially does the same thing.
     fn create_from_pixbuf(pixbuf: &Pixbuf) -> Result<ImageSurface> {
-        let chan = pixbuf.n_channels();
+        let chan = pixbuf.n_channels() as usize;
         if chan < 3 {
             return Err(anyhow!(cairo::Error::InvalidFormat));
         }
@@ -56,18 +56,18 @@ impl ImageSurfaceExt for ImageSurface {
             let cstride = surface.stride() as usize;
             let mut cpixels = surface.data()?;
 
-            if chan == 3 {
-                for y in 0..height {
-                    let goff = y * stride;
-                    let coff = y * cstride;
+            for y in 0..height {
+                let goff = y * stride;
+                let coff = y * cstride;
 
-                    let grow = &pixels[goff..goff + 3 * width];
-                    let crow = &mut cpixels[coff..coff + 4 * width];
+                let grow = &pixels[goff..goff + chan * width];
+                let crow = &mut cpixels[coff..coff + 4 * width];
 
-                    for x in 0..width {
-                        let src = &grow[3 * x..3 * x + 3];
-                        let dst = &mut crow[4 * x..4 * x + 4];
+                for x in 0..width {
+                    let src = &grow[chan * x..chan * x + chan];
+                    let dst = &mut crow[4 * x..4 * x + 4];
 
+                    if fmt == Format::Rgb24 {
                         if cfg!(target_endian = "little") {
                             dst[0] = src[2];
                             dst[1] = src[1];
@@ -79,20 +79,7 @@ impl ImageSurfaceExt for ImageSurface {
                             dst[2] = src[1];
                             dst[3] = src[2];
                         }
-                    }
-                }
-            } else {
-                for y in 0..height {
-                    let goff = y * stride;
-                    let coff = y * cstride;
-
-                    let grow = &pixels[goff..goff + 4 * width];
-                    let crow = &mut cpixels[coff..coff + 4 * width];
-
-                    for x in 0..width {
-                        let src = &grow[4 * x..4 * x + 4];
-                        let dst = &mut crow[4 * x..4 * x + 4];
-
+                    } else {
                         let a = src[3] as u16;
 
                         if cfg!(target_endian = "little") {
