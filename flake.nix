@@ -13,19 +13,20 @@
       in
       {
         defaultPackage = naersk-lib.buildPackage {
-					src = ./.;
-					
-					buildInputs = with pkgs; [
-  					cairo
-					  clang
-					  gdk-pixbuf
-					  glib
-					  libxkbcommon
-					  pam
-					  pkg-config
-					];
+          src = ./.;
 
-					LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
+					
+          buildInputs = with pkgs; [
+            cairo
+            clang
+            gdk-pixbuf
+            glib
+            libxkbcommon
+            pam
+            pkg-config
+          ];
+
+          LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
         };
         
         devShell = with pkgs; mkShell {
