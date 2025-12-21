@@ -33,6 +33,10 @@ $ cargo build --release
 
 The generated binary should then be located at `target/release/nlock`.
 
+**IMPORTANT:** You may need to copy the PAM configuration for nlock into
+`/etc/pam.d` on your system. The configuration can be found in the `pam`
+directory of this repository.
+
 ## Credits
 
 Several other projects have been very helpful during development of nlock:
