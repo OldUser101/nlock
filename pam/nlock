@@ -1,0 +1,5 @@
+# PAM configuration for nlock
+# Copy this file into /etc/pam.d
+# nlock authentication may fail if not present
+
+auth include login
