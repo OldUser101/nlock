@@ -15,7 +15,6 @@
         defaultPackage = naersk-lib.buildPackage {
           src = ./.;
 
-					
           buildInputs = with pkgs; [
             cairo
             clang
@@ -28,7 +27,7 @@
 
           LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
         };
-        
+
         devShell = with pkgs; mkShell {
           buildInputs = [
             cargo
