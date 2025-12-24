@@ -35,9 +35,18 @@
             rustfmt
             pre-commit
             rustPackages.clippy
+
+            cairo
+            clang
+            gdk-pixbuf
+            glib
+            libxkbcommon
+            pam
+            pkg-config
           ];
 
           RUST_SRC_PATH = rustPlatform.rustLibSrc;
+          LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
         };
       }
     );
