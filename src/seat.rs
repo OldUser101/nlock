@@ -90,6 +90,9 @@ impl NLockState {
                     self.password.pop();
                 }
             }
+            xkb::Keysym::Escape => {
+                self.clear_password();
+            }
             _ => match char::from_u32(codepoint) {
                 Some(ch) if !ch.is_control() => {
                     self.password.push(ch);
