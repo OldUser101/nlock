@@ -473,11 +473,7 @@ impl NLockSurface {
                 dpi, width, height, phys_width, phys_height
             );
 
-            if dpi.is_finite() {
-                Some(dpi)
-            } else {
-                None
-            }
+            if dpi.is_finite() { Some(dpi) } else { None }
         })()
         .unwrap_or(DEFAULT_DPI);
 

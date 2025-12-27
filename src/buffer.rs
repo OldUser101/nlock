@@ -150,8 +150,7 @@ impl Dispatch<wl_buffer::WlBuffer, Arc<NLockBufferState>> for NLockState {
         _: &wayland_client::Connection,
         _: &QueueHandle<Self>,
     ) {
-        if let wl_buffer::Event::Release = event
-        {
+        if let wl_buffer::Event::Release = event {
             data.in_use.store(false, Ordering::Release);
         }
     }
