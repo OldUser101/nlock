@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
+use anyhow::{Result, bail};
 use nix::{
     sys::mman::{MapFlags, ProtFlags, mmap, munmap},
     unistd::ftruncate,
@@ -8,29 +9,58 @@ use nix::{
 use std::{
     os::{fd::AsFd, raw::c_void},
     ptr::NonNull,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 use wayland_client::{
     Dispatch, QueueHandle,
-    protocol::{wl_buffer, wl_shm},
+    protocol::{wl_buffer, wl_shm, wl_surface},
 };
 
 use crate::{state::NLockState, util::open_shm};
 
 pub struct NLockBuffer {
-    pub buffer: wl_buffer::WlBuffer,
-    pub data: NonNull<c_void>,
+    buffer: wl_buffer::WlBuffer,
+    data: NonNull<c_void>,
+
     pub width: i32,
     pub height: i32,
     pub size: usize,
-    pub state: Arc<Mutex<NLockBufferState>>,
+    pub state: Arc<NLockBufferState>,
     pub surface: cairo::ImageSurface,
     pub context: cairo::Context,
 }
 
-#[derive(Default)]
 pub struct NLockBufferState {
-    pub in_use: bool,
+    pub in_use: AtomicBool,
+}
+
+pub struct NLockBufferGuard<'a> {
+    wl_buffer: &'a wl_buffer::WlBuffer,
+    state: &'a Arc<NLockBufferState>,
+    committed: bool,
+}
+
+impl<'a> NLockBufferGuard<'a> {
+    /// Attaches, damages, and commits the current buffer onto the specified
+    /// surface.
+    pub fn commit_to(&mut self, surface: &wl_surface::WlSurface) {
+        surface.attach(Some(self.wl_buffer), 0, 0);
+        surface.damage(0, 0, i32::MAX, i32::MAX);
+        surface.commit();
+
+        self.committed = true;
+    }
+}
+
+impl<'a> Drop for NLockBufferGuard<'a> {
+    fn drop(&mut self) {
+        if !self.committed {
+            self.state.in_use.store(false, Ordering::Release);
+        }
+    }
 }
 
 impl NLockBuffer {
@@ -39,7 +69,6 @@ impl NLockBuffer {
         width: i32,
         height: i32,
         format: wl_shm::Format,
-        in_use: bool,
         qh: &QueueHandle<NLockState>,
     ) -> Option<Self> {
         let stride = width * 4;
@@ -60,7 +89,9 @@ impl NLockBuffer {
             .ok()?
         };
 
-        let state = Arc::new(Mutex::new(NLockBufferState { in_use }));
+        let state = Arc::new(NLockBufferState {
+            in_use: AtomicBool::new(false),
+        });
 
         let pool = shm.create_pool(fd.as_fd(), size, qh, ());
         let buffer = pool.create_buffer(0, width, height, stride, format, qh, state.clone());
@@ -86,10 +117,23 @@ impl NLockBuffer {
             width,
             height,
             size: size as usize,
-            state: state.clone(),
+            state,
             surface,
             context,
         })
+    }
+
+    pub fn lock_buffer(&self) -> Option<NLockBufferGuard<'_>> {
+        if self.state.in_use.swap(true, Ordering::AcqRel) {
+            None
+        } else {
+            // Buffer is now "in_use", explicit manage state
+            Some(NLockBufferGuard {
+                wl_buffer: &self.buffer,
+                state: &self.state,
+                committed: false,
+            })
+        }
     }
 
     pub fn destroy(&mut self) {
@@ -98,19 +142,18 @@ impl NLockBuffer {
     }
 }
 
-impl Dispatch<wl_buffer::WlBuffer, Arc<Mutex<NLockBufferState>>> for NLockState {
+impl Dispatch<wl_buffer::WlBuffer, Arc<NLockBufferState>> for NLockState {
     fn event(
         _: &mut Self,
         _: &wl_buffer::WlBuffer,
         event: <wl_buffer::WlBuffer as wayland_client::Proxy>::Event,
-        data: &Arc<Mutex<NLockBufferState>>,
+        data: &Arc<NLockBufferState>,
         _: &wayland_client::Connection,
         _: &QueueHandle<Self>,
     ) {
         if let wl_buffer::Event::Release = event
-            && let Ok(mut state) = data.lock()
         {
-            state.in_use = false;
+            data.in_use.store(false, Ordering::Release);
         }
     }
 }
