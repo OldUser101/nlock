@@ -7,7 +7,7 @@ use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
 use clap::ValueEnum;
 use serde::{Deserialize, de};
-use tracing::warn;
+use tracing::{debug, trace, warn};
 use wayland_client::{
     Dispatch, QueueHandle, WEnum,
     protocol::{wl_compositor, wl_output, wl_shm, wl_subcompositor, wl_subsurface, wl_surface},
@@ -291,6 +291,8 @@ impl NLockSurface {
             }
         };
 
+        trace!("got buffer index {} for background", idx);
+
         let surface = match &self.bg_surface {
             Some(s) => s,
             None => {
@@ -299,7 +301,6 @@ impl NLockSurface {
         };
 
         let buffer = &self.buffers[idx];
-        let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
         context.save()?;
@@ -322,9 +323,10 @@ impl NLockSurface {
         context.paint()?;
         context.restore()?;
 
-        surface.attach(Some(wl_buffer), 0, 0);
-        surface.damage(0, 0, i32::MAX, i32::MAX);
-        surface.commit();
+        let mut buf_guard = buffer
+            .lock_buffer()
+            .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
+        buf_guard.commit_to(surface);
 
         // Avoid rendering the background again
         self.bg_rendered = true;
@@ -381,12 +383,18 @@ impl NLockSurface {
             width as i32,
             height as i32,
             wl_shm::Format::Argb8888,
-            true,
             qh,
         )?;
         self.configure_cairo_init(&mut buf.context).ok()?;
 
         self.buffers.push(buf);
+
+        debug!(
+            "Allocated buffer {} dim. {}x{}",
+            self.buffers.len() - 1,
+            width,
+            height
+        );
 
         Some(self.buffers.len() - 1)
     }
@@ -410,7 +418,7 @@ impl NLockSurface {
         let index = self
             .buffers
             .iter()
-            .position(|buf| buf.state.lock().map(|state| !state.in_use).unwrap_or(false));
+            .position(|buf| !buf.state.in_use.load(Ordering::Acquire));
 
         let idx = match index {
             Some(i) => i,
@@ -566,6 +574,8 @@ impl NLockSurface {
             }
         };
 
+        trace!("got buffer index {} for overlay", idx);
+
         let surface = match &self.ov_surface {
             Some(s) => s,
             None => {
@@ -581,7 +591,6 @@ impl NLockSurface {
         };
 
         let buffer = &self.buffers[idx];
-        let wl_buffer = &buffer.buffer;
 
         let context = &buffer.context;
         self.draw_overlay(config, auth_state, password_len, context)?;
@@ -589,9 +598,10 @@ impl NLockSurface {
         // Ensure subsurface position is always set to 0,0
         subsurface.set_position(0, 0);
 
-        surface.attach(Some(wl_buffer), 0, 0);
-        surface.damage(0, 0, i32::MAX, i32::MAX);
-        surface.commit();
+        let mut buf_guard = buffer
+            .lock_buffer()
+            .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
+        buf_guard.commit_to(surface);
 
         Ok(())
     }
