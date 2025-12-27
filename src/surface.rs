@@ -199,14 +199,45 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
+    fn get_dimensions<T>(&self) -> Result<(T, T)>
+    where
+        u32: Into<T>,
+    {
+        let width = self.width.ok_or(anyhow!("Surface width not set"))?;
+        let height = self.height.ok_or(anyhow!("Surface height not set"))?;
+
+        if width == 0 || height == 0 {
+            bail!("Surface dimensions invalid: {}x{}", width, height);
+        }
+
+        Ok((width.into(), height.into()))
+    }
+
+    fn get_physical_dimensions<T>(&self) -> Result<(T, T)>
+    where
+        i32: Into<T>,
+    {
+        let width = self
+            .physical_width
+            .ok_or(anyhow!("Output physical width not set"))?;
+        let height = self
+            .physical_height
+            .ok_or(anyhow!("Output physical height not set"))?;
+
+        if width <= 0 || height <= 0 {
+            bail!("Output physical dimensions invalid: {}x{}", width, height);
+        }
+
+        Ok((width.into(), height.into()))
+    }
+
     fn draw_background_image(
         &self,
         mode: BackgroundImageScale,
         bg_image: &cairo::ImageSurface,
         context: &cairo::Context,
     ) -> Result<()> {
-        let buf_width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
-        let buf_height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
+        let (buf_width, buf_height) = self.get_dimensions::<f64>()?;
 
         let width = bg_image.width() as f64;
         let height = bg_image.height() as f64;
@@ -301,9 +332,11 @@ impl NLockSurface {
         };
 
         let buffer = &self.buffers[idx];
-
         let context = &buffer.context;
+
         context.save()?;
+
+        self.reset_cairo_context(context)?;
 
         match config.general.bg_type {
             BackgroundType::Color => {
@@ -344,7 +377,7 @@ impl NLockSurface {
         Ok(())
     }
 
-    fn configure_cairo_init(&self, context: &mut cairo::Context) -> Result<()> {
+    fn reset_cairo_context(&self, context: &cairo::Context) -> Result<()> {
         context.set_antialias(cairo::Antialias::Best);
         self.clear_background(context)?;
         context.identity_matrix();
@@ -378,14 +411,13 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) -> Option<usize> {
-        let mut buf = NLockBuffer::new(
+        let buf = NLockBuffer::new(
             shm,
             width as i32,
             height as i32,
             wl_shm::Format::Argb8888,
             qh,
         )?;
-        self.configure_cairo_init(&mut buf.context).ok()?;
 
         self.buffers.push(buf);
 
@@ -404,8 +436,7 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) -> Option<usize> {
-        let width = self.width?;
-        let height = self.height?;
+        let (width, height) = self.get_dimensions::<u32>().ok()?;
 
         // The surface size changed, new buffers needed
         if let Some(last_width) = self.last_width
@@ -428,27 +459,29 @@ impl NLockSurface {
         Some(idx)
     }
 
-    pub fn calculate_dpi(&mut self) -> Result<()> {
-        let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
-        let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
-        let physical_width = self
-            .physical_width
-            .ok_or(anyhow!("Output physical width not set"))? as f64;
-        let physical_height = self
-            .physical_height
-            .ok_or(anyhow!("Output physical height not set"))? as f64;
+    pub fn calculate_dpi(&mut self) {
+        let dpi = (|| {
+            let (width, height) = self.get_dimensions::<f64>().ok()?;
+            let (phys_width, phys_height) = self.get_physical_dimensions::<f64>().ok()?;
 
-        if physical_width == 0.0 || physical_height == 0.0 {
-            self.dpi = Some(DEFAULT_DPI);
-        }
+            let dpi_x = width / (phys_width / 25.4);
+            let dpi_y = height / (phys_height / 25.4);
+            let dpi = (dpi_x + dpi_y) / 2.0;
 
-        let dpi_x = width / (physical_width / 25.4);
-        let dpi_y = height / (physical_height / 25.4);
-        let dpi = (dpi_x + dpi_y) / 2.0;
+            debug!(
+                "Got DPI {}: W H PW PH: {} {} {} {}",
+                dpi, width, height, phys_width, phys_height
+            );
+
+            if dpi.is_finite() {
+                Some(dpi)
+            } else {
+                None
+            }
+        })()
+        .unwrap_or(DEFAULT_DPI);
 
         self.dpi = Some(dpi);
-
-        Ok(())
     }
 
     pub fn create_surface(
@@ -542,6 +575,11 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
+        // DPI required for font creation later, ensure it is set
+        if self.dpi.is_none() {
+            self.calculate_dpi();
+        }
+
         // Render background if needed
         if !self.bg_rendered
             && let Err(e) = self.render_background(config, bg_image, shm, qh)
@@ -591,9 +629,12 @@ impl NLockSurface {
         };
 
         let buffer = &self.buffers[idx];
-
         let context = &buffer.context;
+
+        // Save context to ensure transformations don't leak
+        context.save()?;
         self.draw_overlay(config, auth_state, password_len, context)?;
+        context.restore()?;
 
         // Ensure subsurface position is always set to 0,0
         subsurface.set_position(0, 0);
@@ -613,13 +654,10 @@ impl NLockSurface {
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
-        let width = self.width.ok_or(anyhow!("Surface width not set"))? as f64;
-        let height = self.height.ok_or(anyhow!("Surface height not set"))? as f64;
+        let (width, height) = self.get_dimensions::<f64>()?;
 
-        self.configure_cairo_font(config, context)?;
-
-        // Wipe the buffer clean first to avoid artifacts
-        self.clear_background(context)?;
+        // Reset the context for fresh rendering
+        self.reset_cairo_context(context)?;
 
         // Draw border colour
         context.save()?;
@@ -645,6 +683,8 @@ impl NLockSurface {
         if password_len == 0 && config.input.hide_when_empty {
             return Ok(());
         }
+
+        self.configure_cairo_font(config, context)?;
 
         let fe = context.font_extents()?;
 
@@ -751,11 +791,6 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             let surface = &mut state.surfaces[*data];
             surface.width = Some(width);
             surface.height = Some(height);
-
-            if let Err(e) = surface.calculate_dpi() {
-                warn!("Failed to set surface DPI: {e}, using default {DEFAULT_DPI}");
-                surface.dpi = Some(DEFAULT_DPI);
-            }
 
             lock_surface.ack_configure(serial);
 
