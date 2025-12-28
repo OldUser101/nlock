@@ -17,7 +17,7 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 
 use crate::{
-    auth::AuthState, buffer::NLockBuffer, config::NLockConfig, image::BackgroundImageScale,
+    auth::AuthState, buffer::NLockBuffer, cairo_ext::CairoExt, config::NLockConfig,
     state::NLockState,
 };
 
@@ -48,6 +48,16 @@ impl Default for Rgba {
 pub enum BackgroundType {
     Color,
     Image,
+}
+
+#[derive(Deserialize, Copy, Clone, PartialEq, ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum BackgroundImageScale {
+    Stretch,
+    Fill,
+    Fit,
+    Center,
+    Tile,
 }
 
 impl FromStr for Rgba {
@@ -340,12 +350,7 @@ impl NLockSurface {
 
         match config.general.bg_type {
             BackgroundType::Color => {
-                context.set_source_rgba(
-                    config.colors.bg.r,
-                    config.colors.bg.g,
-                    config.colors.bg.b,
-                    config.colors.bg.a,
-                );
+                context.ext_set_source_rgba(config.colors.bg);
                 context.set_operator(cairo::Operator::Source);
             }
             BackgroundType::Image => {
@@ -541,24 +546,9 @@ impl NLockSurface {
         auth_state: AuthState,
     ) {
         match auth_state {
-            AuthState::Idle => context.set_source_rgba(
-                config.colors.frame_border_idle.r,
-                config.colors.frame_border_idle.g,
-                config.colors.frame_border_idle.b,
-                config.colors.frame_border_idle.a,
-            ),
-            AuthState::Success => context.set_source_rgba(
-                config.colors.frame_border_success.r,
-                config.colors.frame_border_success.g,
-                config.colors.frame_border_success.b,
-                config.colors.frame_border_success.a,
-            ),
-            AuthState::Fail => context.set_source_rgba(
-                config.colors.frame_border_fail.r,
-                config.colors.frame_border_fail.g,
-                config.colors.frame_border_fail.b,
-                config.colors.frame_border_fail.a,
-            ),
+            AuthState::Idle => context.ext_set_source_rgba(config.colors.frame_border_idle),
+            AuthState::Success => context.ext_set_source_rgba(config.colors.frame_border_success),
+            AuthState::Fail => context.ext_set_source_rgba(config.colors.frame_border_fail),
         }
     }
 
@@ -719,19 +709,9 @@ impl NLockSurface {
             outer_h,
             config.input.radius * outer_h, // radius is relative, Cairo requires absolute
         );
-        context.set_source_rgba(
-            config.colors.input_bg.r,
-            config.colors.input_bg.g,
-            config.colors.input_bg.b,
-            config.colors.input_bg.a,
-        );
+        context.ext_set_source_rgba(config.colors.input_bg);
         context.fill_preserve()?;
-        context.set_source_rgba(
-            config.colors.input_border.r,
-            config.colors.input_border.g,
-            config.colors.input_border.b,
-            config.colors.input_border.a,
-        );
+        context.ext_set_source_rgba(config.colors.input_border);
         context.set_line_width(config.input.border);
         context.stroke_preserve()?;
         context.clip();
@@ -744,12 +724,7 @@ impl NLockSurface {
         let text_y = inner_y + (inner_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
 
         // Actually draw the text
-        context.set_source_rgba(
-            config.colors.text.r,
-            config.colors.text.g,
-            config.colors.text.b,
-            config.colors.text.a,
-        );
+        context.ext_set_source_rgba(config.colors.text);
         context.move_to(text_x, text_y);
         context.show_text(text.as_str())?;
 

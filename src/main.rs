@@ -6,7 +6,7 @@ pub mod auth;
 pub mod buffer;
 pub mod config;
 pub mod event;
-pub mod image;
+pub mod cairo_ext;
 pub mod seat;
 pub mod state;
 pub mod surface;
