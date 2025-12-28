@@ -211,6 +211,7 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
+    /// Get the **scaled** dimensions of the current output
     pub fn get_dimensions<T>(&self) -> Result<(T, T)>
     where
         u32: Into<T>,
@@ -222,10 +223,17 @@ impl NLockSurface {
             bail!("Surface dimensions invalid: {}x{}", width, height);
         }
 
+        if self.output_scale <= 0 {
+            bail!("Output scale {} is invalid", self.output_scale);
+        }
+
+        let width = width * self.output_scale as u32;
+        let height = height * self.output_scale as u32;
+
         Ok((width.into(), height.into()))
     }
 
-    pub fn set_dimensions(&mut self, width: u32, height: u32) -> Result<()> {
+    pub fn set_raw_dimensions(&mut self, width: u32, height: u32) -> Result<()> {
         if width == 0 || height == 0 {
             bail!("Surface dimensions invalid: {}x{}", width, height);
         }
@@ -234,6 +242,20 @@ impl NLockSurface {
         self.height = Some(height);
 
         Ok(())
+    }
+
+    pub fn get_raw_dimensions<T>(&self) -> Result<(T, T)>
+    where
+        u32: Into<T>,
+    {
+        let width = self.width.ok_or(anyhow!("Surface width not set"))?;
+        let height = self.height.ok_or(anyhow!("Surface height not set"))?;
+
+        if width == 0 || height == 0 {
+            bail!("Surface dimensions invalid: {}x{}", width, height);
+        }
+
+        Ok((width.into(), height.into()))
     }
 
     pub fn get_physical_dimensions<T>(&self) -> Result<(T, T)>
@@ -261,6 +283,15 @@ impl NLockSurface {
 
         self.physical_width = Some(width);
         self.physical_height = Some(height);
+
+        Ok(())
+    }
+
+    fn update_last_dimensions(&mut self) -> Result<()> {
+        let (width, height) = self.get_dimensions::<u32>()?;
+
+        self.last_width = Some(width);
+        self.last_height = Some(height);
 
         Ok(())
     }
@@ -388,7 +419,7 @@ impl NLockSurface {
         let mut buf_guard = buffer
             .lock_buffer()
             .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
-        buf_guard.commit_to(surface);
+        buf_guard.commit_to(surface, self.output_scale);
 
         // Avoid rendering the background again
         self.bg_rendered = true;
@@ -490,7 +521,7 @@ impl NLockSurface {
 
     pub fn calculate_dpi(&mut self) {
         let dpi = (|| {
-            let (width, height) = self.get_dimensions::<f64>().ok()?;
+            let (width, height) = self.get_raw_dimensions::<f64>().ok()?;
             let (phys_width, phys_height) = self.get_physical_dimensions::<f64>().ok()?;
 
             let dpi_x = width / (phys_width / 25.4);
@@ -585,8 +616,9 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) {
-        // DPI required for font creation later, ensure it is set
-        if self.dpi.is_none() {
+        // DPI used in font scaling, uses default if not set, effectively
+        // disabling scaling.
+        if self.dpi.is_none() && config.font.use_dpi_scaling {
             self.calculate_dpi();
         }
 
@@ -603,8 +635,9 @@ impl NLockSurface {
         }
 
         // Update last width and height to allow for resizing
-        self.last_width = self.width;
-        self.last_height = self.height;
+        if let Err(e) = self.update_last_dimensions() {
+            warn!("Failed to update previous dimensions: {e}");
+        }
     }
 
     fn render_overlay(
@@ -652,7 +685,7 @@ impl NLockSurface {
         let mut buf_guard = buffer
             .lock_buffer()
             .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
-        buf_guard.commit_to(surface);
+        buf_guard.commit_to(surface, self.output_scale);
 
         Ok(())
     }
@@ -664,6 +697,7 @@ impl NLockSurface {
         password_len: usize,
         context: &cairo::Context,
     ) -> Result<()> {
+        // These dimensions are already scaled
         let (width, height) = self.get_dimensions::<f64>()?;
 
         // Reset the context for fresh rendering
@@ -785,7 +819,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
         {
             let surface = &mut state.surfaces[*data];
 
-            if let Err(e) = surface.set_dimensions(width, height) {
+            if let Err(e) = surface.set_raw_dimensions(width, height) {
                 warn!("Failed to set surface dimensions: {e}");
                 return;
             }

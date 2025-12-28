@@ -178,6 +178,9 @@ pub struct NLockConfigFont {
 
     #[serde(default = "default_font_weight")]
     pub weight: FontWeight,
+
+    #[serde(default = "default_font_use_dpi_scaling", rename = "useDpiScaling")]
+    pub use_dpi_scaling: bool,
 }
 
 impl Default for NLockConfigFont {
@@ -187,6 +190,7 @@ impl Default for NLockConfigFont {
             family: default_font_family(),
             slant: default_font_slant(),
             weight: default_font_weight(),
+            use_dpi_scaling: default_font_use_dpi_scaling(),
         }
     }
 }
@@ -197,6 +201,7 @@ impl LoadArgOverrides for NLockConfigFont {
         set_if_some_string!(self.family, &args.font.family);
         set_if_some!(self.slant, args.font.slant);
         set_if_some!(self.weight, args.font.weight);
+        set_if_some!(self.use_dpi_scaling, args.font.use_dpi_scaling);
     }
 }
 
@@ -214,6 +219,10 @@ fn default_font_slant() -> FontSlant {
 
 fn default_font_weight() -> FontWeight {
     FontWeight::Normal
+}
+
+fn default_font_use_dpi_scaling() -> bool {
+    false
 }
 
 #[derive(Deserialize)]

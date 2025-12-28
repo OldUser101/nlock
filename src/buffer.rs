@@ -45,8 +45,9 @@ pub struct NLockBufferGuard<'a> {
 impl<'a> NLockBufferGuard<'a> {
     /// Attaches, damages, and commits the current buffer onto the specified
     /// surface.
-    pub fn commit_to(&mut self, surface: &wl_surface::WlSurface) {
+    pub fn commit_to(&mut self, surface: &wl_surface::WlSurface, scale: i32) {
         surface.attach(Some(self.wl_buffer), 0, 0);
+        surface.set_buffer_scale(scale);
         surface.damage(0, 0, i32::MAX, i32::MAX);
         surface.commit();
 
