@@ -317,8 +317,10 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 transform: _,
             } => {
                 state.surfaces[*data].subpixel = Some(subpixel);
-                state.surfaces[*data].physical_width = Some(physical_width);
-                state.surfaces[*data].physical_height = Some(physical_height);
+
+                if let Err(e) = state.surfaces[*data].set_physical_dimensions(physical_width, physical_height) {
+                    warn!("Failed to set output physical dimensions: {e}");
+                }
             }
             wl_output::Event::Name { name } => {
                 debug!("Found output '{name}'");
