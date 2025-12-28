@@ -32,6 +32,7 @@ frameBorderFail = "#FF0000FF"       # frame border error color
 # Font section configures text display.
 [font]
 size = 72.0     # font size, in points
+useDpiScaling = false   # whether to scale font size based on output DPI
 
 # Font family uses Cairo's toy font API, generally, standard CSS names
 # like `monospace`, `serif`, etc. should work. Leaving it empty (or invalid)

@@ -169,6 +169,7 @@ pub struct NLockArgsFont {
     pub family: Option<String>,
     pub slant: Option<FontSlant>,
     pub weight: Option<FontWeight>,
+    pub use_dpi_scaling: Option<bool>,
 }
 
 impl LoadArgMatches for NLockArgsFont {
@@ -177,12 +178,14 @@ impl LoadArgMatches for NLockArgsFont {
         let family = args_get_value!(matches, String, "font_family");
         let slant = args_get_value!(matches, FontSlant, "font_slant");
         let weight = args_get_value!(matches, FontWeight, "font_weight");
+        let use_dpi_scaling = args_get_value!(matches, bool, "use_dpi_scaling");
 
         Self {
             size,
             family,
             slant,
             weight,
+            use_dpi_scaling,
         }
     }
 }
@@ -359,6 +362,11 @@ fn build_cli() -> Command {
             "Sets the font weight",
             "WEIGHT",
             FontWeight
+        ))
+        .arg(bool_arg!(
+            "use_dpi_scaling",
+            "use-dpi-scaling",
+            "Scale font size based on output DPI"
         ))
         .arg(string_arg!(
             "mask_char",

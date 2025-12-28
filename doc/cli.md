@@ -26,6 +26,7 @@ The following correspond directly to configuration options. See
 - `--font-family <STRING>`, sets the font family
 - `--font-slant <SLANT>`, sets the font slant
 - `--font-weight <WEIGHT>`, sets the font weight
+- `--use-dpi-scaling <BOOL>`, scale font size by display output DPI
 - `--mask-char <STRING>`, sets the mask character for the input box
 - `--input-width <FLOAT>`, sets tthe relative width of the input box
 - `--input-padding_x <FLOAT>`, sets the relative horizontal padding of the input box
