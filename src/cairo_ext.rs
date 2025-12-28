@@ -2,19 +2,20 @@
 // Copyright (C) 2025, Nathan Gill
 
 use anyhow::{Result, anyhow};
-use cairo::{Format, ImageSurface};
-use clap::ValueEnum;
+use cairo::{Context, Format, ImageSurface};
 use gdk_pixbuf::Pixbuf;
-use serde::Deserialize;
 
-#[derive(Deserialize, Copy, Clone, PartialEq, ValueEnum)]
-#[serde(rename_all = "lowercase")]
-pub enum BackgroundImageScale {
-    Stretch,
-    Fill,
-    Fit,
-    Center,
-    Tile,
+use crate::surface::Rgba;
+
+pub trait CairoExt {
+    fn ext_set_source_rgba(&self, rgba: Rgba);
+}
+
+impl CairoExt for Context {
+    /// Set source RGBA from a `surface::Rgba` structure.
+    fn ext_set_source_rgba(&self, rgba: Rgba) {
+        self.set_source_rgba(rgba.r, rgba.g, rgba.b, rgba.a);
+    }
 }
 
 pub trait ImageSurfaceExt {

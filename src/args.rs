@@ -11,10 +11,7 @@ use clap::{
     },
 };
 
-use crate::{
-    image::BackgroundImageScale,
-    surface::{BackgroundType, FontSlant, FontWeight, Rgba},
-};
+use crate::surface::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba};
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {

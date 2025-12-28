@@ -28,7 +28,7 @@ use zeroize::Zeroizing;
 
 use crate::auth::{AtomicAuthState, AuthState};
 use crate::config::NLockConfig;
-use crate::image::ImageSurfaceExt;
+use crate::cairo_ext::ImageSurfaceExt;
 use crate::surface::BackgroundType;
 use crate::{
     auth::AuthRequest,
