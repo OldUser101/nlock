@@ -144,13 +144,15 @@ pub struct NLockSurface {
     pub index: usize,
     pub output_name: Option<String>,
     pub output_scale: i32,
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-    pub last_width: Option<u32>,
-    pub last_height: Option<u32>,
-    pub physical_width: Option<i32>,
-    pub physical_height: Option<i32>,
-    pub dpi: Option<f64>,
+
+    width: Option<u32>,
+    height: Option<u32>,
+    last_width: Option<u32>,
+    last_height: Option<u32>,
+    physical_width: Option<i32>,
+    physical_height: Option<i32>,
+    dpi: Option<f64>,
+
     pub subpixel: Option<WEnum<wl_output::Subpixel>>,
     pub ov_surface: Option<wl_surface::WlSurface>,
     pub bg_surface: Option<wl_surface::WlSurface>,
@@ -209,7 +211,7 @@ impl NLockSurface {
         cairo::SubpixelOrder::Default
     }
 
-    fn get_dimensions<T>(&self) -> Result<(T, T)>
+    pub fn get_dimensions<T>(&self) -> Result<(T, T)>
     where
         u32: Into<T>,
     {
@@ -223,7 +225,18 @@ impl NLockSurface {
         Ok((width.into(), height.into()))
     }
 
-    fn get_physical_dimensions<T>(&self) -> Result<(T, T)>
+    pub fn set_dimensions(&mut self, width: u32, height: u32) -> Result<()> {
+        if width == 0 || height == 0 {
+            bail!("Surface dimensions invalid: {}x{}", width, height);
+        }
+
+        self.width = Some(width);
+        self.height = Some(height);
+
+        Ok(())
+    }
+
+    pub fn get_physical_dimensions<T>(&self) -> Result<(T, T)>
     where
         i32: Into<T>,
     {
@@ -239,6 +252,17 @@ impl NLockSurface {
         }
 
         Ok((width.into(), height.into()))
+    }
+
+    pub fn set_physical_dimensions(&mut self, width: i32, height: i32) -> Result<()> {
+        if width <= 0 || height <= 0 {
+            bail!("Output physical dimensions invalid: {}x{}", width, height);
+        }
+
+        self.physical_width = Some(width);
+        self.physical_height = Some(height);
+
+        Ok(())
     }
 
     fn draw_background_image(
@@ -760,8 +784,11 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             && let Some(shm) = &state.shm
         {
             let surface = &mut state.surfaces[*data];
-            surface.width = Some(width);
-            surface.height = Some(height);
+
+            if let Err(e) = surface.set_dimensions(width, height) {
+                warn!("Failed to set surface dimensions: {e}");
+                return;
+            }
 
             lock_surface.ack_configure(serial);
 
