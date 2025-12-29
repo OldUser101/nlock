@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use atomic_enum::atomic_enum;
 use pam_rs::{Client, PamFlag};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{info, warn};
+use tracing::{debug, warn};
 use zeroize::Zeroizing;
 
 use crate::config::NLockConfig;
@@ -57,7 +57,7 @@ pub async fn run_auth_loop(config: AuthConfig, auth_rx: mpsc::Receiver<AuthReque
     let username = uzers::get_current_username().ok_or(anyhow!("Current user does not exist"))?;
     let username = username.to_string_lossy().to_string();
 
-    info!("Running authenticator for '{username}'");
+    debug!("Running authenticator for '{username}'");
 
     let mut success = false;
 
@@ -74,7 +74,7 @@ pub async fn run_auth_loop(config: AuthConfig, auth_rx: mpsc::Receiver<AuthReque
                         let _ = responder.send(Ok(()));
                     }
                     Err(e) => {
-                        warn!("Auth error: {e}");
+                        debug!("Auth error: {e}");
                         let _ = responder.send(Err(e));
                     }
                 }
