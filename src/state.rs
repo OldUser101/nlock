@@ -11,8 +11,7 @@ use mio::Poll;
 use nix::sys::eventfd::EventFd;
 use nix::sys::timerfd::TimerFd;
 use tokio::sync::{mpsc, oneshot};
-use tracing::debug;
-use tracing::{info, warn};
+use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
@@ -164,14 +163,14 @@ impl NLockState {
 
             match resp_rx.await {
                 Ok(Ok(())) => {
-                    info!("Authentication completed sucecssfully");
+                    debug!("Authentication completed sucecssfully");
 
                     auth_state.store(AuthState::Success, Ordering::Relaxed);
                     running.store(false, Ordering::Relaxed);
                     let _ = state_ev.write(1);
                 }
                 Ok(Err(e)) => {
-                    warn!("PAM authentication error: {e}");
+                    debug!("PAM authentication error: {e}");
 
                     auth_state.store(AuthState::Fail, Ordering::Relaxed);
                     state_changed.store(true, Ordering::Relaxed);
