@@ -43,3 +43,26 @@ The following correspond directly to configuration options. See
 - `--image-path <PATH>`, path to a background image
 - `--image-scale <SCALE MODE>`, sets the image scaling mode
 
+## Shell Completions
+
+nlock supports self-generation of shell completions for common shells.
+
+To generate completions for your current shell, run:
+
+```sh
+$ nlock completions
+```
+
+This will display a shell completion script for your current shell. The process
+of using this script is shell-specific, but typically, it should be written to
+a file and loaded on startup.
+
+If shell detection fails, try specifying the shell explicitly, using Zsh as an
+example:
+
+```sh
+$ nlock completions /usr/bin/zsh
+```
+
+If generation continues to fail, your shell is likely unsupported.
+
