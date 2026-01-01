@@ -1,15 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2025, Nathan Gill
 
-use std::{path::PathBuf, str::FromStr};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use clap::{
-    Arg, ArgMatches, Command, ValueEnum,
+    Arg, ArgAction, ArgMatches, Command, ValueEnum,
     builder::{
         EnumValueParser, Styles,
         styling::{AnsiColor, Effects},
     },
 };
+use clap_complete::{Shell, aot::generate as generate_completions};
 
 use crate::surface::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba};
 
@@ -288,6 +292,16 @@ fn build_cli() -> Command {
         .about("Customisable, minimalist screen locker for Wayland")
         .version(env!("CARGO_PKG_VERSION"))
         .styles(styles())
+        .subcommand(
+            Command::new("completions")
+                .about("Generate shell completions for nlock")
+                .arg(
+                    Arg::new("shell")
+                        .help("Shell to generate completions for")
+                        .value_name("SHELL")
+                        .action(ArgAction::Set),
+                ),
+        )
         .arg(
             Arg::new("log_level")
                 .help("Log level verbosity")
@@ -453,5 +467,26 @@ pub fn run_cli() -> NLockArgs {
     let cli = build_cli();
     let args = cli.get_matches();
 
-    NLockArgs::load_arg_matches(&args)
+    if let Some(("completions", args)) = args.subcommand() {
+        let shell_arg = args.get_one::<String>("shell");
+
+        let shell = if let Some(shell_arg) = shell_arg {
+            Shell::from_shell_path(Path::new(shell_arg))
+        } else {
+            Shell::from_env()
+        };
+
+        if let Some(shell) = shell {
+            let mut cli = build_cli();
+            generate_completions(shell, &mut cli, "nlock", &mut std::io::stdout());
+        } else {
+            println!("Failed to identify shell");
+            std::process::exit(1);
+        }
+
+        // Don't continue running after generation
+        std::process::exit(0);
+    } else {
+        NLockArgs::load_arg_matches(&args)
+    }
 }
