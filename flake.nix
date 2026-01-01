@@ -16,6 +16,10 @@
           default = naersk-lib.buildPackage {
             src = ./.;
 
+            nativeBuildInputs = with pkgs; [
+              installShellFiles
+            ];
+
             buildInputs = with pkgs; [
               cairo
               clang
@@ -25,6 +29,13 @@
               pam
               pkg-config
             ];
+
+            postInstall = ''
+              installShellCompletion --cmd nlock \
+                --bash <($out/bin/nlock completions bash) \
+                --zsh <($out/bin/nlock completions zsh) \
+                --fish <($out/bin/nlock completions fish)
+            '';
 
             LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
           };
