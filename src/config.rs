@@ -11,7 +11,7 @@ use tracing::debug;
 
 use crate::{
     args::NLockArgs,
-    surface::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba},
+    util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba},
 };
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";

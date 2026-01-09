@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
@@ -26,9 +28,9 @@ use wayland_protocols::ext::session_lock::v1::client::{
 use zeroize::Zeroizing;
 
 use crate::auth::{AtomicAuthState, AuthState};
+use crate::cairo_ext::{ImageSurfaceExt, SubpixelOrderExt};
 use crate::config::NLockConfig;
-use crate::cairo_ext::ImageSurfaceExt;
-use crate::surface::BackgroundType;
+use crate::util::BackgroundType;
 use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
@@ -315,9 +317,12 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 model: _,
                 transform: _,
             } => {
-                state.surfaces[*data].subpixel = Some(subpixel);
+                state.surfaces[*data]
+                    .set_subpixel_order(cairo::SubpixelOrder::from_wl_subpixel(subpixel));
 
-                if let Err(e) = state.surfaces[*data].set_physical_dimensions(physical_width, physical_height) {
+                if let Err(e) =
+                    state.surfaces[*data].set_physical_dimensions(physical_width, physical_height)
+                {
                     warn!("Failed to set output physical dimensions: {e}");
                 }
             }

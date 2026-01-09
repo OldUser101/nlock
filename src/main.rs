@@ -4,22 +4,16 @@
 pub mod args;
 pub mod auth;
 pub mod buffer;
+pub mod cairo_ext;
 pub mod config;
 pub mod event;
-pub mod cairo_ext;
+pub mod render;
 pub mod seat;
 pub mod state;
 pub mod surface;
 pub mod util;
 
 use std::sync::atomic::Ordering;
-
-use crate::{
-    args::run_cli,
-    auth::{AuthConfig, AuthRequest, run_auth_loop},
-    config::NLockConfig,
-    state::NLockState,
-};
 
 use anyhow::{Result, bail};
 
@@ -29,6 +23,13 @@ use nix::sys::prctl;
 use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 use wayland_client::Connection;
+
+use crate::{
+    args::run_cli,
+    auth::{AuthConfig, AuthRequest, run_auth_loop},
+    config::NLockConfig,
+    state::NLockState,
+};
 
 async fn start(config: NLockConfig) -> Result<()> {
     // Prevent ptrace from attaching to nlock

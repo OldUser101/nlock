@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
+use std::{
+    os::fd::{AsFd, AsRawFd, BorrowedFd},
+    sync::atomic::Ordering,
+};
+
 use anyhow::{Result, anyhow};
 use mio::{Events, Interest, Poll, Token, unix::SourceFd};
 use nix::{
     sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
     unistd::read,
-};
-use std::{
-    os::fd::{AsFd, AsRawFd, BorrowedFd},
-    sync::atomic::Ordering,
 };
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 

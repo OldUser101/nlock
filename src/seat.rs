@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
+use std::{os::fd::OwnedFd, sync::atomic::Ordering, time::Duration};
+
 use anyhow::{Result, anyhow};
 use nix::sys::{time::TimeSpec, timerfd::Expiration};
-use std::{os::fd::OwnedFd, sync::atomic::Ordering, time::Duration};
 use tracing::{debug, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
