@@ -5,7 +5,7 @@ use anyhow::{Result, anyhow};
 use atomic_enum::atomic_enum;
 use pam_rs::{Client, PamFlag};
 use tokio::sync::{mpsc, oneshot};
-use tracing::{debug, warn};
+use tracing::debug;
 use zeroize::Zeroizing;
 
 use crate::config::NLockConfig;

@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use nix::{
-    sys::mman::{MapFlags, ProtFlags, mmap, munmap},
-    unistd::ftruncate,
-};
 use std::{
     os::{fd::AsFd, raw::c_void},
     ptr::NonNull,
@@ -12,6 +8,11 @@ use std::{
         Arc,
         atomic::{AtomicBool, Ordering},
     },
+};
+
+use nix::{
+    sys::mman::{MapFlags, ProtFlags, mmap, munmap},
+    unistd::ftruncate,
 };
 use wayland_client::{
     Dispatch, QueueHandle,

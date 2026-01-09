@@ -2,19 +2,50 @@
 // Copyright (C) 2026, Nathan Gill
 
 use anyhow::{Result, anyhow};
-use cairo::{Context, Format, ImageSurface};
+use cairo::{Context, Format, ImageSurface, SubpixelOrder};
 use gdk_pixbuf::Pixbuf;
+use wayland_client::{WEnum, protocol::wl_output};
 
-use crate::surface::Rgba;
+use crate::util::Rgba;
 
 pub trait CairoExt {
     fn ext_set_source_rgba(&self, rgba: Rgba);
 }
 
 impl CairoExt for Context {
-    /// Set source RGBA from a `surface::Rgba` structure.
+    /// Set source RGBA from a `util::Rgba` structure.
     fn ext_set_source_rgba(&self, rgba: Rgba) {
         self.set_source_rgba(rgba.r, rgba.g, rgba.b, rgba.a);
+    }
+}
+
+pub trait SubpixelOrderExt {
+    fn from_wl_subpixel(subpixel: WEnum<wl_output::Subpixel>) -> SubpixelOrder;
+}
+
+impl SubpixelOrderExt for SubpixelOrder {
+    /// Convert a Wayland output subpixel enum into a Cairo SubpixelOrder
+    ///
+    /// If the specified output subpixel order has no Cairo equivalent,
+    /// the Cairo default will be used.
+    fn from_wl_subpixel(subpixel: WEnum<wl_output::Subpixel>) -> SubpixelOrder {
+        match subpixel {
+            WEnum::Value(wl_output::Subpixel::HorizontalRgb) => {
+                return SubpixelOrder::Rgb;
+            }
+            WEnum::Value(wl_output::Subpixel::HorizontalBgr) => {
+                return SubpixelOrder::Bgr;
+            }
+            WEnum::Value(wl_output::Subpixel::VerticalRgb) => {
+                return SubpixelOrder::Vrgb;
+            }
+            WEnum::Value(wl_output::Subpixel::VerticalBgr) => {
+                return SubpixelOrder::Vbgr;
+            }
+            _ => {
+                return SubpixelOrder::Default;
+            }
+        }
     }
 }
 

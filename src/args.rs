@@ -15,7 +15,7 @@ use clap::{
 };
 use clap_complete::{Shell, aot::generate as generate_completions};
 
-use crate::surface::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba};
+use crate::util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba};
 
 #[derive(Copy, Clone, Debug, ValueEnum)]
 pub enum LogLevel {
