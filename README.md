@@ -50,3 +50,5 @@ Several other projects have been very helpful during development of nlock:
 
 nlock is licensed under the GNU General Public License Version 3, or later.
 See [LICENSE](LICENSE) for details.
+
+Copyright (C) 2026, Nathan Gill
