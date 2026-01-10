@@ -254,9 +254,6 @@ impl NLockSurface {
             let ov_surface = compositor.create_surface(qh, ());
             let subsurface = subcompositor.get_subsurface(&ov_surface, &bg_surface, qh, ());
 
-            // The overlay surface should be able to update independently
-            subsurface.set_desync();
-
             // Pass all input to the main surface, this feels a bit hacky
             let region = compositor.create_region(qh, ());
             region.add(0, 0, 0, 0);
@@ -296,16 +293,12 @@ impl NLockSurface {
             self.calculate_dpi();
         }
 
-        // Render background if needed
-        if !self.bg_rendered
-            && let Err(e) = self.render_background(config, bg_image, shm, qh)
-        {
-            warn!("Error while rendering background: {e}");
-        }
-
-        // Always render the overlay
         if let Err(e) = self.render_overlay(config, auth_state, pwd_len, shm, qh) {
             warn!("Error while rendering overlay: {e}");
+        }
+
+        if let Err(e) = self.render_background(config, bg_image, shm, qh) {
+            warn!("Error while rendering background: {e}");
         }
 
         // Update last width and height to allow for resizing
@@ -321,6 +314,15 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
+        // Background rendered, but we need to commit again
+        // to allow overlay update (synchronised surfaces)
+        if self.bg_rendered
+            && let Some(surface) = &self.bg_surface
+        {
+            surface.commit();
+            return Ok(());
+        }
+
         let (buf_width, buf_height) = self.get_dimensions::<f64>()?;
 
         let idx = match self.get_buffer_idx(shm, qh) {
