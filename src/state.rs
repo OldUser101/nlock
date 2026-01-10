@@ -331,15 +331,17 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 state.surfaces[*data].output_name = Some(name);
             }
             wl_output::Event::Scale { factor } => {
-                debug!(
-                    "Set output scale for '{}' to {factor}",
-                    state.surfaces[*data]
-                        .output_name
-                        .as_ref()
-                        .unwrap_or(&"".to_string())
-                );
-
-                state.surfaces[*data].output_scale = factor;
+                if let Err(e) = state.surfaces[*data].set_scale(factor) {
+                    warn!("Failed to set output scale: {e}");
+                } else {
+                    debug!(
+                        "Set output scale for '{}' to {factor}",
+                        state.surfaces[*data]
+                            .output_name
+                            .as_ref()
+                            .unwrap_or(&"".to_string())
+                    );
+                }
             }
             wl_output::Event::Done => {
                 if let (Some(compositor), Some(subcompositor), Some(session_lock)) =
