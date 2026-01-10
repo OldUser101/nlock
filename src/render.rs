@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub const DEFAULT_DPI: f64 = 96.0;
+pub const DEFAULT_SCALE: f64 = 1.0;
 
 pub struct NLockRenderBackgroundArgs<'a> {
     pub buf_height: f64,
@@ -60,6 +61,7 @@ impl<'a> NLockRenderOverlayArgs<'a> {
 #[derive(Default)]
 pub struct NLockRenderer {
     dpi: Option<f64>,
+    scale: Option<f64>,
     subpixel_order: Option<cairo::SubpixelOrder>,
 }
 
@@ -80,6 +82,12 @@ impl NLockRenderer {
 
     pub fn set_subpixel_order(&mut self, order: cairo::SubpixelOrder) {
         self.subpixel_order = Some(order);
+    }
+
+    pub fn set_scale(&mut self, scale: f64) {
+        if scale > 0.0 {
+            self.scale = Some(scale);
+        }
     }
 
     fn clear_background(&self, context: &cairo::Context) -> Result<()> {
@@ -114,7 +122,8 @@ impl NLockRenderer {
         );
 
         let dpi = self.dpi.unwrap_or(DEFAULT_DPI);
-        context.set_font_size((config.font.size / 72.0) * dpi);
+        let scale = self.scale.unwrap_or(DEFAULT_SCALE);
+        context.set_font_size((config.font.size / 72.0) * dpi * scale);
 
         Ok(())
     }
@@ -236,12 +245,14 @@ impl NLockRenderer {
         // Reset the context for fresh rendering
         self.reset_cairo_context(context)?;
 
+        let scale = self.scale.unwrap_or(DEFAULT_SCALE);
+
         // Draw border colour
         context.save()?;
         self.set_frame_border_color(config, context, auth_state);
-        context.set_line_width(config.frame.border);
+        context.set_line_width(config.frame.border * scale);
 
-        let frame_offset = config.frame.border / 2.0;
+        let frame_offset = (config.frame.border * scale) / 2.0;
         let frame_w = buf_width - (frame_offset * 2.0);
         let frame_h = buf_height - (frame_offset * 2.0);
 
@@ -251,7 +262,7 @@ impl NLockRenderer {
             frame_offset,
             frame_w,
             frame_h,
-            config.frame.radius,
+            config.frame.radius * scale,
         );
         context.stroke()?;
         context.restore()?;
@@ -283,8 +294,8 @@ impl NLockRenderer {
         let inner_x = (buf_width - inner_w) / 2.0;
         let inner_y = (buf_height - inner_h) / 2.0;
 
-        let outer_h = inner_h + (padding_y * 2.0) + config.input.border;
-        let outer_w = inner_w + (padding_x * 2.0) + config.input.border;
+        let outer_h = inner_h + (padding_y * 2.0) + (config.input.border * scale);
+        let outer_w = inner_w + (padding_x * 2.0) + (config.input.border * scale);
         let outer_x = (buf_width - outer_w) / 2.0;
         let outer_y = (buf_height - outer_h) / 2.0;
 
@@ -303,7 +314,7 @@ impl NLockRenderer {
         context.ext_set_source_rgba(config.colors.input_bg);
         context.fill_preserve()?;
         context.ext_set_source_rgba(config.colors.input_border);
-        context.set_line_width(config.input.border);
+        context.set_line_width(config.input.border * scale);
         context.stroke_preserve()?;
         context.clip();
 

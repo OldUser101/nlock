@@ -27,8 +27,8 @@ pub struct NLockSurface {
     pub bg_rendered: bool,
     pub index: usize,
     pub output_name: Option<String>,
-    pub output_scale: i32,
 
+    output_scale: i32,
     width: Option<u32>,
     height: Option<u32>,
     last_width: Option<u32>,
@@ -154,6 +154,17 @@ impl NLockSurface {
     pub fn set_subpixel_order(&mut self, order: cairo::SubpixelOrder) {
         self.subpixel = Some(order);
         self.renderer.set_subpixel_order(order);
+    }
+
+    pub fn set_scale(&mut self, scale: i32) -> Result<()> {
+        if scale <= 0 {
+            bail!("Invalid scale {}", scale);
+        }
+
+        self.output_scale = scale;
+        self.renderer.set_scale(scale as f64);
+
+        Ok(())
     }
 
     fn update_last_dimensions(&mut self) -> Result<()> {
