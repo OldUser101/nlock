@@ -30,21 +30,11 @@ impl SubpixelOrderExt for SubpixelOrder {
     /// the Cairo default will be used.
     fn from_wl_subpixel(subpixel: WEnum<wl_output::Subpixel>) -> SubpixelOrder {
         match subpixel {
-            WEnum::Value(wl_output::Subpixel::HorizontalRgb) => {
-                return SubpixelOrder::Rgb;
-            }
-            WEnum::Value(wl_output::Subpixel::HorizontalBgr) => {
-                return SubpixelOrder::Bgr;
-            }
-            WEnum::Value(wl_output::Subpixel::VerticalRgb) => {
-                return SubpixelOrder::Vrgb;
-            }
-            WEnum::Value(wl_output::Subpixel::VerticalBgr) => {
-                return SubpixelOrder::Vbgr;
-            }
-            _ => {
-                return SubpixelOrder::Default;
-            }
+            WEnum::Value(wl_output::Subpixel::HorizontalRgb) => SubpixelOrder::Rgb,
+            WEnum::Value(wl_output::Subpixel::HorizontalBgr) => SubpixelOrder::Bgr,
+            WEnum::Value(wl_output::Subpixel::VerticalRgb) => SubpixelOrder::Vrgb,
+            WEnum::Value(wl_output::Subpixel::VerticalBgr) => SubpixelOrder::Vbgr,
+            _ => SubpixelOrder::Default,
         }
     }
 }
