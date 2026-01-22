@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::sync::{
-    Arc,
-    atomic::{AtomicBool, Ordering},
+use std::{
+    fs::File,
+    io::Seek,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 use anyhow::{Result, anyhow, bail};
@@ -27,7 +31,6 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
-use crate::auth::{AtomicAuthState, AuthState};
 use crate::cairo_ext::{ImageSurfaceExt, SubpixelOrderExt};
 use crate::config::NLockConfig;
 use crate::util::BackgroundType;
@@ -35,6 +38,10 @@ use crate::{
     auth::AuthRequest,
     seat::{NLockSeat, NLockXkb},
     surface::NLockSurface,
+};
+use crate::{
+    auth::{AtomicAuthState, AuthState},
+    util::detect_png,
 };
 
 pub struct NLockState {
@@ -191,11 +198,24 @@ impl NLockState {
             return Ok(());
         }
 
-        let pixbuf = Pixbuf::from_file(self.config.image.path.clone())?;
-        let pixbuf = pixbuf
-            .apply_embedded_orientation()
-            .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
-        self.background_image = Some(ImageSurface::create_from_pixbuf(&pixbuf)?);
+        let mut image_file = File::open(&self.config.image.path)?;
+        let is_png = detect_png(&mut image_file)?;
+        image_file.rewind()?;
+
+        // if it's a PNG, Cairo can handle it directly, pixbuf conversion is expensive
+        if is_png {
+            let image_surface = ImageSurface::create_from_png(&mut image_file)?;
+            self.background_image = Some(image_surface);
+        } else {
+            let pixbuf = Pixbuf::from_read(image_file)?;
+            let pixbuf = pixbuf
+                .apply_embedded_orientation()
+                .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
+
+            let image_surface = ImageSurface::create_from_pixbuf(&pixbuf)?;
+            self.background_image = Some(image_surface);
+        }
+
         self.config.general.bg_type = BackgroundType::Image;
 
         Ok(())
