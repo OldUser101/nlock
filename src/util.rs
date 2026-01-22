@@ -1,7 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::{os::fd::OwnedFd, str::FromStr};
+use std::{
+    io::{self, Read},
+    os::fd::OwnedFd,
+    str::FromStr,
+};
 
 use clap::ValueEnum;
 use nix::{
@@ -167,4 +171,22 @@ pub fn is_eintr(err: &std::io::Error) -> bool {
         Some(code) => code == libc::EINTR,
         None => false,
     }
+}
+
+const PNG_SIG: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+// Detect if a source stream starts with a PNG signature.
+// Intended use case is for detecting whether a file is PNG or not.
+pub fn detect_png<R>(r: &mut R) -> io::Result<bool>
+where
+    R: Read,
+{
+    let mut buf = [0; 8];
+    let n = r.read(&mut buf)?;
+
+    if n < 8 || !buf.eq(&PNG_SIG) {
+        return Ok(false);
+    }
+
+    Ok(true)
 }
