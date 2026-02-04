@@ -47,6 +47,7 @@ pub trait LoadArgOverrides {
 }
 
 #[derive(Default, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfig {
     #[serde(default)]
     pub colors: NLockConfigColors,
@@ -79,6 +80,7 @@ impl LoadArgOverrides for NLockConfig {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigColors {
     #[serde(default = "default_bg_color", rename = "background")]
     pub bg: Rgba,
@@ -166,6 +168,7 @@ fn default_frame_border_fail_color() -> Rgba {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigFont {
     #[serde(default = "default_font_size")]
     pub size: f64,
@@ -226,6 +229,7 @@ fn default_font_use_dpi_scaling() -> bool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigInput {
     #[serde(default = "default_mask_char", rename = "maskChar")]
     pub mask_char: String,
@@ -309,6 +313,7 @@ fn default_input_fit_to_content() -> bool {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigFrame {
     #[serde(default = "default_frame_border")]
     pub border: f64,
@@ -342,6 +347,7 @@ fn default_frame_radius() -> f64 {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigGeneral {
     #[serde(default = "default_pwd_allow_empty", rename = "allowEmptyPassword")]
     pub pwd_allow_empty: bool,
@@ -384,6 +390,7 @@ fn default_bg_type() -> BackgroundType {
 }
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NLockConfigImage {
     #[serde(default = "default_image_path")]
     pub path: PathBuf,
