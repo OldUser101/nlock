@@ -4,7 +4,6 @@
 use std::{os::fd::OwnedFd, sync::atomic::Ordering, time::Duration};
 
 use anyhow::{Result, anyhow};
-use nix::sys::{time::TimeSpec, timerfd::Expiration};
 use tracing::{debug, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
@@ -123,7 +122,7 @@ impl NLockState {
         }
 
         if self.seat.repeat_timer_set
-            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as usize)
+            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as u64)
         {
             return Err(e);
         } else {
@@ -140,11 +139,9 @@ impl NLockState {
             let repeat_rate_duration = Duration::from_millis(self.seat.repeat_rate as u64);
 
             self.set_timer(
-                EventType::KeyboardRepeat as usize,
-                Expiration::IntervalDelayed(
-                    TimeSpec::from_duration(repeat_delay_duration),
-                    TimeSpec::from_duration(repeat_rate_duration),
-                ),
+                EventType::KeyboardRepeat as u64,
+                repeat_rate_duration,
+                Some(repeat_delay_duration),
             )?;
 
             self.seat.repeat_timer_set = true;

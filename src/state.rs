@@ -13,9 +13,7 @@ use std::{
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
 use gdk_pixbuf::Pixbuf;
-use mio::Poll;
 use nix::sys::eventfd::EventFd;
-use nix::sys::timerfd::TimerFd;
 use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
@@ -31,7 +29,6 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
-use crate::cairo_ext::{ImageSurfaceExt, SubpixelOrderExt};
 use crate::config::NLockConfig;
 use crate::util::BackgroundType;
 use crate::{
@@ -42,6 +39,10 @@ use crate::{
 use crate::{
     auth::{AtomicAuthState, AuthState},
     util::detect_png,
+};
+use crate::{
+    cairo_ext::{ImageSurfaceExt, SubpixelOrderExt},
+    reactor::epoll::EpollReactor,
 };
 
 pub struct NLockState {
@@ -62,8 +63,8 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub poll: Option<Poll>,
-    pub timers: Vec<(TimerFd, usize)>,
+    pub reactor: EpollReactor,
+    pub timers: Vec<(u64, u64)>,
     pub auth_tx: mpsc::Sender<AuthRequest>,
     pub auth_state: Arc<AtomicAuthState>,
     pub state_ev: Arc<EventFd>,
@@ -94,7 +95,7 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            poll: None,
+            reactor: EpollReactor::new()?,
             timers: Vec::new(),
             auth_tx,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),

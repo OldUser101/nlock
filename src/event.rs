@@ -1,23 +1,20 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::{
-    os::fd::{AsFd, AsRawFd, BorrowedFd},
-    sync::atomic::Ordering,
-};
+use std::{sync::atomic::Ordering, time::Duration};
 
 use anyhow::{Result, anyhow};
-use mio::{Events, Interest, Poll, Token, unix::SourceFd};
-use nix::{
-    sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
-    unistd::read,
-};
+use nix::unistd::read;
+use tracing::warn;
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
-use crate::{state::NLockState, util::is_eintr};
+use crate::{
+    reactor::{Id, Interest, Reactor},
+    state::NLockState,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[repr(usize)]
+#[repr(u64)]
 pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
@@ -25,7 +22,7 @@ pub enum EventType {
 }
 
 impl EventType {
-    fn from_usize(value: usize) -> Result<Self> {
+    fn from_u64(value: u64) -> Result<Self> {
         match value {
             0 => Ok(Self::Wayland),
             1 => Ok(Self::KeyboardRepeat),
@@ -37,36 +34,23 @@ impl EventType {
 }
 
 impl NLockState {
-    pub fn set_timer(&mut self, id: usize, expiration: Expiration) -> Result<()> {
-        let repeat_timer = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())?;
-        repeat_timer.set(expiration, TimerSetTimeFlags::empty())?;
+    pub fn set_timer(&mut self, id: u64, timeout: Duration, delay: Option<Duration>) -> Result<()> {
+        let event_id = self.reactor.register(Interest::Timer {
+            delay,
+            timeout,
+            token: id,
+        })?;
 
-        let mut repeat_timer_src = SourceFd(&repeat_timer.as_fd().as_raw_fd());
-
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
-        poll.registry()
-            .register(&mut repeat_timer_src, Token(id), Interest::READABLE)?;
-
-        self.timers.push((repeat_timer, id));
+        self.timers.push((event_id, id));
 
         Ok(())
     }
 
-    pub fn unset_timer(&mut self, id: usize) -> Result<()> {
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
+    pub fn unset_timer(&mut self, id: u64) -> Result<()> {
         let mut i = 0;
         while i < self.timers.len() {
             if self.timers[i].1 == id {
-                poll.registry()
-                    .deregister(&mut SourceFd(&self.timers[i].0.as_fd().as_raw_fd()))?;
+                self.reactor.deregister(self.timers[i].0)?;
                 self.timers.swap_remove(i);
             } else {
                 i += 1;
@@ -76,76 +60,45 @@ impl NLockState {
         Ok(())
     }
 
-    fn setup_poll(&mut self) -> Result<()> {
-        let poll = Poll::new()?;
+    fn setup_reactor(&mut self) -> Result<()> {
+        self.reactor.register(Interest::readable(
+            self.state_ev.clone(),
+            EventType::StateChanged as u64,
+        )?)?;
 
-        // Register the state event file descriptor
-        poll.registry().register(
-            &mut SourceFd(&self.state_ev.as_raw_fd()),
-            Token(EventType::StateChanged as usize),
-            Interest::READABLE,
-        )?;
-
-        self.poll = Some(poll);
         Ok(())
     }
 
-    fn poll_events(&mut self, events: &mut Events, wayland_sock_fd: BorrowedFd<'_>) -> Result<()> {
-        let mut wayland_sock_src = SourceFd(&wayland_sock_fd.as_raw_fd());
+    fn poll_events(&mut self) -> Result<Vec<Id>> {
+        let events = match self.reactor.wait(None) {
+            Ok(ev) => ev,
+            Err(e) => return Err(anyhow!("Error while waiting: {e}")),
+        };
 
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
-        {
-            // Register the Wayland file descriptor with the poll
-            poll.registry().register(
-                &mut wayland_sock_src,
-                Token(EventType::Wayland as usize),
-                Interest::READABLE,
-            )?;
-
-            match poll.poll(events, None) {
-                Ok(_) => {}
-                Err(e) if is_eintr(&e) => {}
-                Err(e) => return Err(anyhow!("Error during epoll: {e}")),
-            }
-
-            poll.registry().deregister(&mut wayland_sock_src)?;
-        }
-
-        Ok(())
+        Ok(events)
     }
 
     fn process_events(
         &mut self,
-        events: &Events,
+        events: &Vec<Id>,
         read_guard: ReadEventsGuard,
         event_queue: &mut EventQueue<NLockState>,
     ) -> Result<()> {
         let mut wayland_sock_ready = false;
-        for event in events {
-            match EventType::from_usize(event.token().0)? {
+        for id in events {
+            let token = if let Some(tok) = self.reactor.event(*id) {
+                tok
+            } else {
+                warn!("Token for ID {} not found", id);
+                continue;
+            };
+
+            match EventType::from_u64(token)? {
                 EventType::Wayland => {
                     wayland_sock_ready = true;
                 }
                 EventType::KeyboardRepeat => {
-                    if let Some(idx) = self
-                        .timers
-                        .iter()
-                        .position(|timer| timer.1 == EventType::KeyboardRepeat as usize)
-                    {
-                        let timer = &self.timers[idx];
-                        let mut buf = [0u8; std::mem::size_of::<u64>()];
-                        let res = read(&timer.0, &mut buf)?;
-                        if res == std::mem::size_of::<u64>() {
-                            let intervals = u64::from_ne_bytes(buf);
-                            for _ in 0..intervals {
-                                self.handle_repeat_event();
-                            }
-                        }
-                    }
+                    self.handle_repeat_event();
                 }
                 EventType::StateChanged => {
                     // Read whatever is stored in there, we don't care what
@@ -188,11 +141,9 @@ impl NLockState {
     }
 
     pub fn event_loop_cycle(&mut self, event_queue: &mut EventQueue<NLockState>) -> Result<()> {
-        if self.poll.is_none() {
-            self.setup_poll()?;
+        if self.reactor.count() == 0 {
+            self.setup_reactor()?;
         }
-
-        let mut events = Events::with_capacity(64);
 
         event_queue.flush()?;
         event_queue.dispatch_pending(self)?;
@@ -202,9 +153,17 @@ impl NLockState {
             .ok_or(anyhow!("Failed to obtain Wayland event read guard"))?;
         let wayland_sock_fd = read_guard.connection_fd();
 
-        self.poll_events(&mut events, wayland_sock_fd)?;
+        // Register the Wayland file descriptor with the reactor
+        let wayland_id = self.reactor.register(Interest::readable(
+            wayland_sock_fd,
+            EventType::Wayland as u64,
+        )?)?;
+
+        let events = self.poll_events()?;
         self.process_events(&events, read_guard, event_queue)?;
         self.re_render(&event_queue.handle());
+
+        self.reactor.deregister(wayland_id)?;
 
         Ok(())
     }

@@ -7,6 +7,7 @@ pub mod buffer;
 pub mod cairo_ext;
 pub mod config;
 pub mod event;
+pub mod reactor;
 pub mod render;
 pub mod seat;
 pub mod state;
