@@ -176,7 +176,7 @@ impl NLockState {
                 self.surfaces[i].render(
                     &self.config,
                     auth_state,
-                    self.password.len(),
+                    self.password.chars().count(),
                     self.background_image.as_ref(),
                     shm,
                     qh,
