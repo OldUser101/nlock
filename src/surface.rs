@@ -478,7 +478,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
             surface.render(
                 &state.config,
                 auth_state,
-                state.password.len(),
+                state.password.chars().count(),
                 state.background_image.as_ref(),
                 shm,
                 qh,
