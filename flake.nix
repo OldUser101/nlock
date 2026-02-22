@@ -1,26 +1,48 @@
 {
-  inputs = {
-    naersk.url = "github:nix-community/naersk/master";
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    utils.url = "github:numtide/flake-utils";
-  };
+  description = "Customisable, minimalist screen locker for Wayland";
 
-  outputs = { self, nixpkgs, utils, naersk }:
-    utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = import nixpkgs { inherit system; };
-        naersk-lib = pkgs.callPackage naersk { };
-      in
-      {
-        packages = {
-          default = naersk-lib.buildPackage {
-            src = ./.;
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
 
-            nativeBuildInputs = with pkgs; [
-              installShellFiles
-            ];
+  outputs =
+    {
+      self,
+      nixpkgs,
+    }:
+    let
+      inherit (nixpkgs) lib;
+      systems = [
+        "aarch64-linux"
+        "x86_64-linux"
+      ];
+      eachSystem = lib.genAttrs systems;
 
-            buildInputs = with pkgs; [
+      pkgsFor = eachSystem (
+        system:
+        import nixpkgs {
+          inherit system;
+          overlays = with self.overlays; [ nlock ];
+        }
+      );
+    in
+    {
+      overlays = import ./nix/overlays.nix { };
+
+      packages = eachSystem (system: {
+        default = self.packages.${system}.nlock;
+        inherit (pkgsFor.${system}) nlock;
+      });
+
+      devShells = eachSystem (system: {
+        default =
+          with pkgsFor.${system};
+          mkShell {
+            buildInputs = [
+              cargo
+              rustc
+              rustfmt
+              pre-commit
+              rustPackages.clippy
+
               cairo
               clang
               gdk-pixbuf
@@ -30,37 +52,9 @@
               pkg-config
             ];
 
-            postInstall = ''
-              installShellCompletion --cmd nlock \
-                --bash <($out/bin/nlock completions bash) \
-                --zsh <($out/bin/nlock completions zsh) \
-                --fish <($out/bin/nlock completions fish)
-            '';
-
-            LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
+            RUST_SRC_PATH = rustPlatform.rustLibSrc;
+            LIBCLANG_PATH = "${clang.cc.lib}/lib";
           };
-        };
-
-        devShell = with pkgs; mkShell {
-          buildInputs = [
-            cargo
-            rustc
-            rustfmt
-            pre-commit
-            rustPackages.clippy
-
-            cairo
-            clang
-            gdk-pixbuf
-            glib
-            libxkbcommon
-            pam
-            pkg-config
-          ];
-
-          RUST_SRC_PATH = rustPlatform.rustLibSrc;
-          LIBCLANG_PATH = "${pkgs.clang.cc.lib}/lib";
-        };
-      }
-    );
+      });
+    };
 }
