@@ -129,13 +129,13 @@ impl Default for NLockConfigColors {
 
 impl LoadArgOverrides for NLockConfigColors {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some!(self.bg, args.colors.bg);
-        set_if_some!(self.text, args.colors.text);
-        set_if_some!(self.input_bg, args.colors.input_bg);
-        set_if_some!(self.input_border, args.colors.input_border);
-        set_if_some!(self.frame_border_idle, args.colors.frame_border_idle);
-        set_if_some!(self.frame_border_success, args.colors.frame_border_success);
-        set_if_some!(self.frame_border_fail, args.colors.frame_border_fail);
+        set_if_some!(self.bg, args.bg_color);
+        set_if_some!(self.text, args.text_color);
+        set_if_some!(self.input_bg, args.input_bg_color);
+        set_if_some!(self.input_border, args.input_border_color);
+        set_if_some!(self.frame_border_idle, args.frame_border_idle_color);
+        set_if_some!(self.frame_border_success, args.frame_border_success_color);
+        set_if_some!(self.frame_border_fail, args.frame_border_fail_color);
     }
 }
 
@@ -200,11 +200,11 @@ impl Default for NLockConfigFont {
 
 impl LoadArgOverrides for NLockConfigFont {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some!(self.size, args.font.size);
-        set_if_some_string!(self.family, &args.font.family);
-        set_if_some!(self.slant, args.font.slant);
-        set_if_some!(self.weight, args.font.weight);
-        set_if_some!(self.use_dpi_scaling, args.font.use_dpi_scaling);
+        set_if_some!(self.size, args.font_size);
+        set_if_some_string!(self.family, &args.font_family);
+        set_if_some!(self.slant, args.font_slant);
+        set_if_some!(self.weight, args.font_weight);
+        set_if_some!(self.use_dpi_scaling, args.use_dpi_scaling);
     }
 }
 
@@ -273,14 +273,14 @@ impl Default for NLockConfigInput {
 
 impl LoadArgOverrides for NLockConfigInput {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some_string!(self.mask_char, &args.input.mask_char);
-        set_if_some!(self.width, args.input.width);
-        set_if_some!(self.padding_x, args.input.padding_x);
-        set_if_some!(self.padding_y, args.input.padding_y);
-        set_if_some!(self.radius, args.input.radius);
-        set_if_some!(self.border, args.input.border);
-        set_if_some!(self.hide_when_empty, args.input.hide_when_empty);
-        set_if_some!(self.fit_to_content, args.input.fit_to_content);
+        set_if_some_string!(self.mask_char, &args.mask_char);
+        set_if_some!(self.width, args.input_width);
+        set_if_some!(self.padding_x, args.input_padding_x);
+        set_if_some!(self.padding_y, args.input_padding_y);
+        set_if_some!(self.radius, args.input_radius);
+        set_if_some!(self.border, args.input_border);
+        set_if_some!(self.hide_when_empty, args.hide_when_empty);
+        set_if_some!(self.fit_to_content, args.fit_to_content);
     }
 }
 
@@ -333,8 +333,8 @@ impl Default for NLockConfigFrame {
 
 impl LoadArgOverrides for NLockConfigFrame {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some!(self.border, args.frame.border);
-        set_if_some!(self.radius, args.frame.radius);
+        set_if_some!(self.border, args.frame_border);
+        set_if_some!(self.radius, args.frame_radius);
     }
 }
 
@@ -371,9 +371,9 @@ impl Default for NLockConfigGeneral {
 
 impl LoadArgOverrides for NLockConfigGeneral {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some!(self.pwd_allow_empty, args.general.pwd_allow_empty);
-        set_if_some!(self.hide_cursor, args.general.hide_cursor);
-        set_if_some!(self.bg_type, args.general.bg_type);
+        set_if_some!(self.pwd_allow_empty, args.pwd_allow_empty);
+        set_if_some!(self.hide_cursor, args.hide_cursor);
+        set_if_some!(self.bg_type, args.bg_type);
     }
 }
 
@@ -410,8 +410,8 @@ impl Default for NLockConfigImage {
 
 impl LoadArgOverrides for NLockConfigImage {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        set_if_some_path!(self.path, &args.image.path);
-        set_if_some!(self.scale, args.image.scale);
+        set_if_some_path!(self.path, &args.image_path);
+        set_if_some!(self.scale, args.image_scale);
     }
 }
 

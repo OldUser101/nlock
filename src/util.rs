@@ -27,7 +27,7 @@ pub enum BackgroundType {
     Image,
 }
 
-#[derive(Deserialize, Copy, Clone, PartialEq, ValueEnum)]
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum BackgroundImageScale {
     Stretch,
