@@ -99,7 +99,7 @@ async fn main() {
 
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(args.log_level.to_level())
+        .with_max_level(args.log_level)
         .init();
 
     let now = chrono::Local::now();
