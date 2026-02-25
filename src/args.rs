@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use clap::{
-    Command, CommandFactory, FromArgMatches, Parser, Subcommand, ValueEnum,
+    Command, CommandFactory, FromArgMatches, Parser, Subcommand,
     builder::{
         Styles,
         styling::{AnsiColor, Effects},
@@ -12,28 +12,7 @@ use clap::{
 };
 use clap_complete::{Shell, aot::generate as generate_completions};
 
-use crate::util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba};
-
-#[derive(Copy, Clone, Debug, ValueEnum)]
-pub enum LogLevel {
-    Trace,
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
-
-impl LogLevel {
-    pub fn to_level(self) -> tracing::Level {
-        match self {
-            Self::Trace => tracing::Level::TRACE,
-            Self::Debug => tracing::Level::DEBUG,
-            Self::Info => tracing::Level::INFO,
-            Self::Warn => tracing::Level::WARN,
-            Self::Error => tracing::Level::ERROR,
-        }
-    }
-}
+use crate::util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, LogLevel, Rgba};
 
 /// Customisable, minimalist screen locker for Wayland
 #[derive(Parser, Debug)]

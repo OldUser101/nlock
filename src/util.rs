@@ -134,6 +134,27 @@ impl From<FontWeight> for cairo::FontWeight {
     }
 }
 
+#[derive(Debug, Copy, Clone, ValueEnum)]
+pub enum LogLevel {
+    Trace,
+    Debug,
+    Info,
+    Warn,
+    Error,
+}
+
+impl From<LogLevel> for tracing::level_filters::LevelFilter {
+    fn from(value: LogLevel) -> Self {
+        match value {
+            LogLevel::Trace => Self::TRACE,
+            LogLevel::Debug => Self::DEBUG,
+            LogLevel::Info => Self::INFO,
+            LogLevel::Warn => Self::WARN,
+            LogLevel::Error => Self::ERROR,
+        }
+    }
+}
+
 pub fn open_shm() -> Option<OwnedFd> {
     let mut retries = 100;
 
