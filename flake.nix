@@ -16,21 +16,36 @@
       ];
       eachSystem = lib.genAttrs systems;
 
+      overlays = import ./nix/overlays.nix { };
+
       pkgsFor = eachSystem (
         system:
         import nixpkgs {
           inherit system;
-          overlays = with self.overlays; [ nlock ];
+          overlays = [ overlays.nlock ];
         }
       );
+
+      nixosModule = import ./nix/nixos-module.nix self;
+      hmModule = import ./nix/hm-module.nix self;
     in
     {
-      overlays = import ./nix/overlays.nix { };
+      inherit overlays;
 
       packages = eachSystem (system: {
         default = self.packages.${system}.nlock;
         inherit (pkgsFor.${system}) nlock;
       });
+
+      nixosModules = {
+        default = self.nixosModules.nlock;
+        nlock = nixosModule;
+      };
+
+      homeManagerModules = {
+        default = self.homeManagerModules.nlock;
+        nlock = hmModule;
+      };
 
       devShells = eachSystem (system: {
         default =
