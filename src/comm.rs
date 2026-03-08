@@ -1,23 +1,34 @@
-use std::os::fd::{AsFd, OwnedFd};
+use std::{
+    marker::PhantomData,
+    os::fd::{AsFd, OwnedFd},
+};
 
 use anyhow::{Result, anyhow};
 use nix::errno::Errno;
 
 /// A one-way pipe based communication channel
-pub struct PipeCommChannel {
+pub struct PipeCommChannel<T> {
     tx: OwnedFd,
     rx: OwnedFd,
+    _marker: PhantomData<T>,
 }
 
-impl PipeCommChannel {
+impl<T> PipeCommChannel<T>
+where
+    T: AsBytes + FromBytes,
+{
     pub fn new() -> Result<Self> {
         let p = nix::unistd::pipe()?;
-        Ok(Self { tx: p.1, rx: p.0 })
+        Ok(Self {
+            tx: p.1,
+            rx: p.0,
+            _marker: PhantomData,
+        })
     }
 
-    pub fn write_str(&self, msg: String) -> Result<()> {
-        let size_buf = msg.len().to_ne_bytes();
+    pub fn write(&self, msg: T) -> Result<()> {
         let msg_buf = msg.as_bytes();
+        let size_buf = msg_buf.len().to_ne_bytes();
 
         write(&self.tx, &size_buf)?;
         write(&self.tx, msg_buf)?;
@@ -25,37 +36,17 @@ impl PipeCommChannel {
         Ok(())
     }
 
-    pub fn read_str(&self) -> Result<String> {
-        let mut size_buf = [0u8; std::mem::size_of::<u64>()];
+    pub fn read(&self) -> Result<T> {
+        let mut size_buf = [0u8; std::mem::size_of::<usize>()];
         read(&self.rx, &mut size_buf)?;
 
         let size = usize::from_ne_bytes(size_buf);
         let mut msg_buf = vec![0u8; size];
         read(&self.rx, &mut msg_buf)?;
 
-        let msg = String::from_utf8(msg_buf)?;
+        let msg = T::from_bytes(&msg_buf).ok_or(anyhow!("Failed to convert message"))?;
 
         Ok(msg)
-    }
-
-    pub fn write_bool(&self, val: bool) -> Result<()> {
-        let val_buf = if val { [1u8] } else { [0u8] };
-        write(&self.tx, &val_buf)?;
-
-        Ok(())
-    }
-
-    pub fn read_bool(&self) -> Result<bool> {
-        let mut val_buf = [0u8; 1];
-        read(&self.rx, &mut val_buf)?;
-
-        let val = match val_buf[0] {
-            0u8 => false,
-            1u8 => true,
-            _ => return Err(anyhow!("Invalid value for bool, expected 1 or 0")),
-        };
-
-        Ok(val)
     }
 
     pub fn tx(&self) -> &OwnedFd {
@@ -91,6 +82,58 @@ where
             Ok(sz) => return Ok(sz),
             Err(Errno::EINTR) => continue,
             Err(e) => return Err(anyhow!("write failed: {e}")),
+        }
+    }
+}
+
+pub trait AsBytes {
+    /// Convert to a bytes-like representation of the object
+    fn as_bytes(&self) -> &[u8];
+}
+
+impl AsBytes for String {
+    fn as_bytes(&self) -> &[u8] {
+        self.as_bytes()
+    }
+}
+
+impl AsBytes for bool {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            false => &[0u8],
+            true => &[1u8],
+        }
+    }
+}
+
+pub trait FromBytes {
+    /// Convert from a bytes-like representation of the object
+    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    where
+        Self: Sized;
+}
+
+impl FromBytes for String {
+    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        Self::from_utf8(bytes.to_vec()).ok()
+    }
+}
+
+impl FromBytes for bool {
+    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if bytes.len() != 1 {
+            return None;
+        }
+        match bytes[0] {
+            0u8 => Some(false),
+            1u8 => Some(true),
+            _ => None,
         }
     }
 }

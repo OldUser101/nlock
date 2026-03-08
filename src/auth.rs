@@ -17,8 +17,8 @@ use zeroize::Zeroizing;
 use crate::{comm::PipeCommChannel, config::NLockConfig};
 
 pub struct AuthChannel {
-    pub request: PipeCommChannel,
-    pub response: PipeCommChannel,
+    pub request: PipeCommChannel<String>,
+    pub response: PipeCommChannel<bool>,
     pub stop_ev: EventFd,
 }
 
@@ -69,7 +69,7 @@ fn authenticate(config: &AuthConfig, username: &str, password: Zeroizing<String>
 
 /// Handle an authentication request, returning a value to indicate success
 fn handle_auth_request(config: &AuthConfig, auth_comm: Arc<AuthChannel>, username: &str) -> bool {
-    let pwd = match auth_comm.request.read_str().map(Zeroizing::new) {
+    let pwd = match auth_comm.request.read().map(Zeroizing::new) {
         Ok(p) => p,
         Err(e) => {
             warn!("Auth comm error: {e}");
@@ -113,7 +113,7 @@ pub async fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> R
                     success = handle_auth_request(&config, auth_comm.clone(), &username);
 
                     // dump auth result in response pipe
-                    if let Err(e) = auth_comm.response.write_bool(success) {
+                    if let Err(e) = auth_comm.response.write(success) {
                         warn!("Failed to write auth response: {e}");
                     }
                 }

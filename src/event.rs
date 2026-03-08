@@ -162,7 +162,7 @@ impl NLockState {
                     let mut buf = [0u8; std::mem::size_of::<u64>()];
                     let _ = read(self.state_ev.clone(), &mut buf)?;
                 }
-                EventType::AuthStateChanged => match self.auth_comm.response.read_bool() {
+                EventType::AuthStateChanged => match self.auth_comm.response.read() {
                     Ok(true) => {
                         // auth was successful, set flags for exit
                         self.auth_state.store(AuthState::Success, Ordering::Relaxed);

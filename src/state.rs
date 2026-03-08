@@ -150,7 +150,7 @@ impl NLockState {
 
     /// Write the current password into the auth channel and clear it
     pub fn submit_password(&mut self) {
-        if let Err(e) = self.auth_comm.request.write_str(self.password.to_string()) {
+        if let Err(e) = self.auth_comm.request.write(self.password.to_string()) {
             warn!("Failed to write auth request: {e}");
         }
 
