@@ -1,4 +1,5 @@
 {
+  shortRev ? "unknown",
   ...
 }:
 let
@@ -10,7 +11,7 @@ rec {
 
   nlock = final: prev: {
     nlock = prev.callPackage ./default.nix {
-      inherit version;
+      inherit version shortRev;
     };
   };
 }

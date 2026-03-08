@@ -10,6 +10,7 @@
   pam,
   pkg-config,
   version ? "git",
+  shortRev ? "unknown",
 }:
 
 rustPlatform.buildRustPackage {
@@ -44,6 +45,7 @@ rustPlatform.buildRustPackage {
   '';
 
   LIBCLANG_PATH = "${clang.cc.lib}/lib";
+  NLOCK_COMMIT = "${shortRev}"; # used to generate version string
 
   meta = with lib; {
     description = "Customisable, minimalist screen locker for Wayland";
