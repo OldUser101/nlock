@@ -31,7 +31,7 @@ use crate::{
     state::NLockState,
 };
 
-async fn start(config: NLockConfig) -> Result<()> {
+fn start(config: NLockConfig) -> Result<()> {
     // Prevent ptrace from attaching to nlock
     // Only do this in release config
     #[cfg(not(debug_assertions))]
@@ -71,10 +71,14 @@ async fn start(config: NLockConfig) -> Result<()> {
         bail!("Missing ExtSessionLockManagerV1");
     }
 
-    let auth_comm_auth = auth_comm.clone();
-    tokio::spawn(async move {
-        if let Err(e) = run_auth_loop(auth_config, auth_comm_auth).await {
-            warn!("Error in auth thread: {e}");
+    // spawn authenticator loop in another thread
+    std::thread::spawn({
+        let auth_comm = auth_comm.clone();
+        move || {
+            if let Err(e) = run_auth_loop(auth_config, auth_comm) {
+                warn!("Error in auth thread: {e}");
+            }
+            debug!("Auth thread exited");
         }
     });
 
@@ -96,8 +100,7 @@ async fn start(config: NLockConfig) -> Result<()> {
     Ok(())
 }
 
-#[tokio::main()]
-async fn main() {
+fn main() {
     let args = run_cli();
 
     tracing_subscriber::fmt()
@@ -110,7 +113,7 @@ async fn main() {
 
     match NLockConfig::load(&args) {
         Ok(cfg) => {
-            if let Err(e) = start(cfg).await {
+            if let Err(e) = start(cfg) {
                 error!("{:#?}", e);
             }
         }

@@ -86,7 +86,7 @@ fn handle_auth_request(config: &AuthConfig, auth_comm: Arc<AuthChannel>, usernam
     }
 }
 
-pub async fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<()> {
+pub fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<()> {
     let username = uzers::get_current_username().ok_or(anyhow!("Current user does not exist"))?;
     let username = username.to_string_lossy().to_string();
 
