@@ -906,9 +906,6 @@ dependencies = [
  "pam-rs",
  "serde",
  "time",
- "tokio",
- "tokio-macros",
- "toml",
  "tracing",
  "tracing-subscriber",
  "uzers 0.12.1",
@@ -1432,27 +1429,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
 dependencies = [
  "crunchy",
-]
-
-[[package]]
-name = "tokio"
-version = "1.48.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ff360e02eab121e0bc37a2d3b4d4dc622e6eda3a8e5253d5435ecf5bd4c68408"
-dependencies = [
- "pin-project-lite",
- "tokio-macros",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "2.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af407857209536a95c8e56f8231ef2c2e2aff839b22e07a1ffcbc617e9db9fa5"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.108",
 ]
 
 [[package]]

@@ -5,6 +5,7 @@ pub mod args;
 pub mod auth;
 pub mod buffer;
 pub mod cairo_ext;
+pub mod comm;
 pub mod config;
 pub mod event;
 pub mod render;
@@ -13,25 +14,24 @@ pub mod state;
 pub mod surface;
 pub mod util;
 
-use std::sync::atomic::Ordering;
+use std::sync::{Arc, atomic::Ordering};
 
 use anyhow::{Result, bail};
 
 #[cfg_attr(debug_assertions, allow(unused_imports))]
 use nix::sys::prctl;
 
-use tokio::sync::mpsc;
 use tracing::{debug, error, warn};
 use wayland_client::Connection;
 
 use crate::{
     args::run_cli,
-    auth::{AuthConfig, AuthRequest, run_auth_loop},
+    auth::{AuthChannel, AuthConfig, run_auth_loop},
     config::NLockConfig,
     state::NLockState,
 };
 
-async fn start(config: NLockConfig) -> Result<()> {
+fn start(config: NLockConfig) -> Result<()> {
     // Prevent ptrace from attaching to nlock
     // Only do this in release config
     #[cfg(not(debug_assertions))]
@@ -40,10 +40,10 @@ async fn start(config: NLockConfig) -> Result<()> {
     let conn = Connection::connect_to_env()?;
     let display = conn.display();
 
-    let (auth_tx, auth_rx) = mpsc::channel::<AuthRequest>(32);
+    let auth_comm = Arc::new(AuthChannel::new()?);
     let auth_config = AuthConfig::new(&config);
 
-    let mut state = NLockState::new(config, display, auth_tx.clone())?;
+    let mut state = NLockState::new(config, display, auth_comm.clone())?;
 
     let mut event_queue = conn.new_event_queue();
     let qh = event_queue.handle();
@@ -71,9 +71,14 @@ async fn start(config: NLockConfig) -> Result<()> {
         bail!("Missing ExtSessionLockManagerV1");
     }
 
-    tokio::spawn(async move {
-        if let Err(e) = run_auth_loop(auth_config, auth_rx).await {
-            warn!("Error in auth thread: {e}");
+    // spawn authenticator loop in another thread
+    std::thread::spawn({
+        let auth_comm = auth_comm.clone();
+        move || {
+            if let Err(e) = run_auth_loop(auth_config, auth_comm) {
+                warn!("Error in auth thread: {e}");
+            }
+            debug!("Auth thread exited");
         }
     });
 
@@ -88,13 +93,14 @@ async fn start(config: NLockConfig) -> Result<()> {
     state.unlock(&qh);
     event_queue.roundtrip(&mut state)?;
 
-    auth_tx.send(AuthRequest::Exit).await.unwrap();
+    if let Err(e) = auth_comm.stop_ev.write(1) {
+        warn!("Failed to stop auth loop: {e}");
+    }
 
     Ok(())
 }
 
-#[tokio::main()]
-async fn main() {
+fn main() {
     let args = run_cli();
 
     tracing_subscriber::fmt()
@@ -107,7 +113,7 @@ async fn main() {
 
     match NLockConfig::load(&args) {
         Ok(cfg) => {
-            if let Err(e) = start(cfg).await {
+            if let Err(e) = start(cfg) {
                 error!("{:#?}", e);
             }
         }
