@@ -22,8 +22,7 @@ use crate::{auth::AuthState, state::NLockState, util::is_eintr};
 pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
-    StateChanged = 2,
-    AuthStateChanged = 3,
+    AuthStateChanged = 2,
 }
 
 impl EventType {
@@ -31,8 +30,7 @@ impl EventType {
         match value {
             0 => Ok(Self::Wayland),
             1 => Ok(Self::KeyboardRepeat),
-            2 => Ok(Self::StateChanged),
-            3 => Ok(Self::AuthStateChanged),
+            2 => Ok(Self::AuthStateChanged),
 
             _ => Err(anyhow!("Invalid EventType value")),
         }
@@ -81,13 +79,6 @@ impl NLockState {
 
     fn setup_poll(&mut self) -> Result<()> {
         let poll = Poll::new()?;
-
-        // Register the state event file descriptor
-        poll.registry().register(
-            &mut SourceFd(&self.state_ev.as_raw_fd()),
-            Token(EventType::StateChanged as usize),
-            Interest::READABLE,
-        )?;
 
         // Register the auth response file descriptor
         poll.registry().register(
@@ -156,11 +147,6 @@ impl NLockState {
                             }
                         }
                     }
-                }
-                EventType::StateChanged => {
-                    // Read whatever is stored in there, we don't care what
-                    let mut buf = [0u8; std::mem::size_of::<u64>()];
-                    let _ = read(self.state_ev.clone(), &mut buf)?;
                 }
                 EventType::AuthStateChanged => match self.auth_comm.response.read() {
                     Ok(true) => {

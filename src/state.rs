@@ -11,7 +11,6 @@ use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
 use gdk_pixbuf::Pixbuf;
 use mio::Poll;
-use nix::sys::eventfd::EventFd;
 use nix::sys::timerfd::TimerFd;
 use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
@@ -64,7 +63,6 @@ pub struct NLockState {
     pub timers: Vec<(TimerFd, usize)>,
     pub auth_comm: Arc<AuthChannel>,
     pub auth_state: Arc<AtomicAuthState>,
-    pub state_ev: Arc<EventFd>,
     pub background_image: Option<cairo::ImageSurface>,
 }
 
@@ -96,7 +94,6 @@ impl NLockState {
             timers: Vec::new(),
             auth_comm,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
-            state_ev: Arc::new(EventFd::new()?),
             background_image: None,
         };
 
