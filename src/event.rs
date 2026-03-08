@@ -12,9 +12,10 @@ use nix::{
     sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
     unistd::read,
 };
+use tracing::warn;
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
-use crate::{state::NLockState, util::is_eintr};
+use crate::{auth::AuthState, state::NLockState, util::is_eintr};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(usize)]
@@ -22,6 +23,7 @@ pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
     StateChanged = 2,
+    AuthStateChanged = 3,
 }
 
 impl EventType {
@@ -30,6 +32,7 @@ impl EventType {
             0 => Ok(Self::Wayland),
             1 => Ok(Self::KeyboardRepeat),
             2 => Ok(Self::StateChanged),
+            3 => Ok(Self::AuthStateChanged),
 
             _ => Err(anyhow!("Invalid EventType value")),
         }
@@ -83,6 +86,13 @@ impl NLockState {
         poll.registry().register(
             &mut SourceFd(&self.state_ev.as_raw_fd()),
             Token(EventType::StateChanged as usize),
+            Interest::READABLE,
+        )?;
+
+        // Register the auth response file descriptor
+        poll.registry().register(
+            &mut SourceFd(&self.auth_comm.response.rx().as_raw_fd()),
+            Token(EventType::AuthStateChanged as usize),
             Interest::READABLE,
         )?;
 
@@ -152,6 +162,22 @@ impl NLockState {
                     let mut buf = [0u8; std::mem::size_of::<u64>()];
                     let _ = read(self.state_ev.clone(), &mut buf)?;
                 }
+                EventType::AuthStateChanged => match self.auth_comm.response.read_bool() {
+                    Ok(true) => {
+                        // auth was successful, set flags for exit
+                        self.auth_state.store(AuthState::Success, Ordering::Relaxed);
+                        self.running.store(false, Ordering::Relaxed);
+                        self.state_changed.store(true, Ordering::Relaxed);
+                    }
+                    Ok(false) => {
+                        // auth failed, set fail state
+                        self.auth_state.store(AuthState::Fail, Ordering::Relaxed);
+                        self.state_changed.store(true, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        warn!("Failed to receive auth response: {e}");
+                    }
+                },
             }
         }
 

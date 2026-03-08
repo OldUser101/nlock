@@ -4,10 +4,7 @@
 use std::{
     fs::File,
     io::Seek,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+    sync::{Arc, atomic::AtomicBool},
 };
 
 use anyhow::{Result, anyhow, bail};
@@ -16,7 +13,6 @@ use gdk_pixbuf::Pixbuf;
 use mio::Poll;
 use nix::sys::eventfd::EventFd;
 use nix::sys::timerfd::TimerFd;
-use tokio::sync::{mpsc, oneshot};
 use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
@@ -31,17 +27,19 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
-use crate::cairo_ext::{ImageSurfaceExt, SubpixelOrderExt};
 use crate::config::NLockConfig;
 use crate::util::BackgroundType;
 use crate::{
-    auth::AuthRequest,
-    seat::{NLockSeat, NLockXkb},
-    surface::NLockSurface,
+    auth::AuthChannel,
+    cairo_ext::{ImageSurfaceExt, SubpixelOrderExt},
 };
 use crate::{
     auth::{AtomicAuthState, AuthState},
     util::detect_png,
+};
+use crate::{
+    seat::{NLockSeat, NLockXkb},
+    surface::NLockSurface,
 };
 
 pub struct NLockState {
@@ -64,7 +62,7 @@ pub struct NLockState {
     pub password: Zeroizing<String>,
     pub poll: Option<Poll>,
     pub timers: Vec<(TimerFd, usize)>,
-    pub auth_tx: mpsc::Sender<AuthRequest>,
+    pub auth_comm: Arc<AuthChannel>,
     pub auth_state: Arc<AtomicAuthState>,
     pub state_ev: Arc<EventFd>,
     pub background_image: Option<cairo::ImageSurface>,
@@ -74,7 +72,7 @@ impl NLockState {
     pub fn new(
         config: NLockConfig,
         display: wl_display::WlDisplay,
-        auth_tx: mpsc::Sender<AuthRequest>,
+        auth_comm: Arc<AuthChannel>,
     ) -> Result<Self> {
         let mut s = Self {
             config,
@@ -96,7 +94,7 @@ impl NLockState {
             password: Zeroizing::new("".to_string()),
             poll: None,
             timers: Vec::new(),
-            auth_tx,
+            auth_comm,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
             state_ev: Arc::new(EventFd::new()?),
             background_image: None,
@@ -150,44 +148,11 @@ impl NLockState {
         self.password.clear();
     }
 
+    /// Write the current password into the auth channel and clear it
     pub fn submit_password(&mut self) {
-        let tx_clone = self.auth_tx.clone();
-        let password = self.password.clone();
-        let running = self.running.clone();
-        let state_changed = self.state_changed.clone();
-        let state_ev = self.state_ev.clone();
-        let auth_state = self.auth_state.clone();
-
-        auth_state.store(AuthState::Idle, Ordering::Relaxed);
-
-        tokio::spawn(async move {
-            let (resp_tx, resp_rx) = oneshot::channel();
-            if let Err(e) = tx_clone
-                .send(AuthRequest::Password(password, resp_tx))
-                .await
-            {
-                warn!("Failed to submit password: {e}");
-                return;
-            }
-
-            match resp_rx.await {
-                Ok(Ok(())) => {
-                    debug!("Authentication completed sucecssfully");
-
-                    auth_state.store(AuthState::Success, Ordering::Relaxed);
-                    running.store(false, Ordering::Relaxed);
-                    let _ = state_ev.write(1);
-                }
-                Ok(Err(e)) => {
-                    debug!("PAM authentication error: {e}");
-
-                    auth_state.store(AuthState::Fail, Ordering::Relaxed);
-                    state_changed.store(true, Ordering::Relaxed);
-                    let _ = state_ev.write(1);
-                }
-                Err(e) => warn!("Error receiving from auth thread: {e}"),
-            }
-        });
+        if let Err(e) = self.auth_comm.request.write_str(self.password.to_string()) {
+            warn!("Failed to write auth request: {e}");
+        }
 
         self.clear_password();
     }
