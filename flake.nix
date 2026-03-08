@@ -16,7 +16,8 @@
       ];
       eachSystem = lib.genAttrs systems;
 
-      overlays = import ./nix/overlays.nix { };
+      shortRev = self.shortRev or self.dirtyShortRev or "unknown";
+      overlays = import ./nix/overlays.nix { inherit shortRev; };
 
       pkgsFor = eachSystem (
         system:

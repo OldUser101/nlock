@@ -135,7 +135,10 @@ fn styles() -> Styles {
 }
 
 fn build_cli() -> Command {
-    NLockArgs::command().styles(styles())
+    NLockArgs::command()
+        .styles(styles())
+        .version(env!("NLOCK_LONG_VERSION"))
+        .long_version(env!("NLOCK_LONG_VERSION"))
 }
 
 pub fn run_cli() -> NLockArgs {
