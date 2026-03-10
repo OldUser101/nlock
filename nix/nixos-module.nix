@@ -166,10 +166,14 @@ in
           description = "Width of input box border, absolute, typically pixels";
         };
 
-        hideWhenEmpty = mkOption {
-          type = types.bool;
-          default = false;
-          description = "Whether to hide the input box if password is empty";
+        visible = mkOption {
+          type = types.enum [
+            "never"
+            "content"
+            "always"
+          ];
+          default = "always";
+          description = "Level of visibility for the input box";
         };
 
         fitToContent = mkOption {
