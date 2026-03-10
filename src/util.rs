@@ -37,6 +37,14 @@ pub enum BackgroundImageScale {
     Tile,
 }
 
+#[derive(Debug, Deserialize, Copy, Clone, PartialEq, ValueEnum)]
+#[serde(rename_all = "lowercase")]
+pub enum InputVisibility {
+    Never,
+    Content,
+    Always,
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Rgba {
     pub r: f64,

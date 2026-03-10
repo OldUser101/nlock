@@ -12,7 +12,9 @@ use clap::{
 };
 use clap_complete::{Shell, aot::generate as generate_completions};
 
-use crate::util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, LogLevel, Rgba};
+use crate::util::{
+    BackgroundImageScale, BackgroundType, FontSlant, FontWeight, InputVisibility, LogLevel, Rgba,
+};
 
 /// Customisable, minimalist screen locker for Wayland
 #[derive(Parser, Debug)]
@@ -83,9 +85,9 @@ pub struct NLockArgs {
     /// Sets tne border width of the input box
     #[arg(long)]
     pub input_border: Option<f64>,
-    /// Hide the input box when empty
+    /// Input box visibility
     #[arg(long)]
-    pub hide_when_empty: Option<bool>,
+    pub input_visible: Option<InputVisibility>,
     /// Resize the input box to fit the entered password
     #[arg(long)]
     pub fit_to_content: Option<bool>,

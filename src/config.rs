@@ -11,7 +11,7 @@ use tracing::debug;
 
 use crate::{
     args::NLockArgs,
-    util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, Rgba},
+    util::{BackgroundImageScale, BackgroundType, FontSlant, FontWeight, InputVisibility, Rgba},
 };
 
 const CONFIG_FILE_NAME: &str = "nlock.toml";
@@ -249,8 +249,8 @@ pub struct NLockConfigInput {
     #[serde(default = "default_input_border")]
     pub border: f64,
 
-    #[serde(default = "default_input_hide_when_empty", rename = "hideWhenEmpty")]
-    pub hide_when_empty: bool,
+    #[serde(default = "default_input_visible")]
+    pub visible: InputVisibility,
 
     #[serde(default = "default_input_fit_to_content", rename = "fitToContent")]
     pub fit_to_content: bool,
@@ -265,7 +265,7 @@ impl Default for NLockConfigInput {
             padding_y: default_input_padding(),
             radius: default_input_radius(),
             border: default_input_border(),
-            hide_when_empty: default_input_hide_when_empty(),
+            visible: default_input_visible(),
             fit_to_content: default_input_fit_to_content(),
         }
     }
@@ -279,7 +279,7 @@ impl LoadArgOverrides for NLockConfigInput {
         set_if_some!(self.padding_y, args.input_padding_y);
         set_if_some!(self.radius, args.input_radius);
         set_if_some!(self.border, args.input_border);
-        set_if_some!(self.hide_when_empty, args.hide_when_empty);
+        set_if_some!(self.visible, args.input_visible);
         set_if_some!(self.fit_to_content, args.fit_to_content);
     }
 }
@@ -304,8 +304,8 @@ fn default_input_border() -> f64 {
     0.0f64
 }
 
-fn default_input_hide_when_empty() -> bool {
-    false
+fn default_input_visible() -> InputVisibility {
+    InputVisibility::Always
 }
 
 fn default_input_fit_to_content() -> bool {

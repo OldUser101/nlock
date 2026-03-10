@@ -33,8 +33,8 @@ The following correspond directly to configuration options. See
 - `--input-padding_y <FLOAT>`, sets the relative vertical padding of the input box
 - `--input-radius <FLOAT>`, sets the relative border radius of the input box
 - `--input-border <FLOAT>`, sets the border width of the input box
-- `--input-hide-when-empty <BOOL>`, hide the input box when empty
-- `--input-fit-to-content <BOOL>`, resize the input box to fit password
+- `--input-visible <VISIBILITY>`, level of visibility for the input box
+- `--fit-to-content <BOOL>`, resize the input box to fit password
 - `--frame-radius <FLOAT>`, sets the border radius of the frame
 - `--frame-border <FLOAT>`, sets the border width of the frame
 - `--allow-empty-password <BOOL>`, validate empty passwords

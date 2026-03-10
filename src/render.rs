@@ -9,7 +9,7 @@ use crate::{
     auth::AuthState,
     cairo_ext::CairoExt,
     config::NLockConfig,
-    util::{BackgroundImageScale, BackgroundType},
+    util::{BackgroundImageScale, BackgroundType, InputVisibility},
 };
 
 pub const DEFAULT_DPI: f64 = 96.0;
@@ -268,7 +268,9 @@ impl NLockRenderer {
         context.restore()?;
 
         // Skip drawing input box if the password is empty and config flag set
-        if pwd_len == 0 && config.input.hide_when_empty {
+        if config.input.visible == InputVisibility::Never
+            || (pwd_len == 0 && config.input.visible == InputVisibility::Content)
+        {
             return Ok(());
         }
 
