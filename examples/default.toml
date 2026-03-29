@@ -1,0 +1,53 @@
+# The values defined in this example are the defaults used by nlock
+
+# General configuration options
+[general]
+allowEmptyPassword = false      # allow a blank password to be validated
+hideCursor = true               # hide the mouse cursor
+backgroundType = "color"        # background type "color", or "image"
+
+# Colors section configures, well, colors.
+[colors]
+# Colors are in either #RRGGBBAA or #RRGGBB format,
+# both #RRGGBBAA in this case.
+background = "#000000FF"            # background color, same as "#000000"
+text = "#FFFFFFFF"                  # text color, same as "#FFFFFF"
+inputBackground = "#000000FF"       # input box background color
+inputBorder = "#000000FF"           # input box border color
+frameBorderIdle = "#00000000"       # frame border idle color
+frameBorderSuccess = "#00000000"    # frame border success color
+frameBorderFail = "#FF0000FF"       # frame border error color
+
+# Font section configures text display.
+[font]
+size = 72.0     # font size, in points
+useDpiScaling = false   # whether to scale font size based on output DPI
+
+# Font family uses Cairo's toy font API, generally, standard CSS names
+# like `monospace`, `serif`, etc. should work. Leaving it empty (or invalid)
+# will select the system default.
+family = ""
+
+slant = "normal"    # font slant, either "normal", "italic", or "oblique"
+weight = "normal"   # font weight, either "normal", or "bold"
+
+# Input section configures the password input box.
+[input]
+maskChar = "*"      # character displayed in place of password characters
+width = 0.5         # width of the input box, relative to display width
+paddingX = 0.05     # input box horizontal padding, relative to display width
+paddingY = 0.05     # input box vertical padding, relative to display height
+radius = 0.0        # radius of input box corners, relative to total box height
+border = 0.0        # width of input box border, absolute, typically pixels
+
+visible = "always"   # input box visibility, "never", "content", "always"
+fitToContent = false    # resize input box to fit password, up to `width`
+
+# Frame section configures everything around the input box.
+[frame]
+border = 25.0   # width of frame border, absolute units, typically pixels
+radius = 0.0    # radius of frame border, absolute units, typically pixels
+
+[image]
+path = ""       # full path to background image, does not support shell expansions
+scale = "fill"  # background image scaling, "center", "fit", "fill", "stretch", "tile"
