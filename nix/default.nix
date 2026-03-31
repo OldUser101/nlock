@@ -8,6 +8,7 @@
   glib,
   libxkbcommon,
   pam,
+  pango,
   pkg-config,
   version ? "git",
   shortRev ? "unknown",
@@ -35,6 +36,7 @@ rustPlatform.buildRustPackage {
     glib
     libxkbcommon
     pam
+    pango
   ];
 
   postInstall = ''

@@ -23,13 +23,13 @@ frameBorderFail = "#FF0000FF"       # frame border error color
 size = 72.0     # font size, in points
 useDpiScaling = false   # whether to scale font size based on output DPI
 
-# Font family uses Cairo's toy font API, generally, standard CSS names
-# like `monospace`, `serif`, etc. should work. Leaving it empty (or invalid)
-# will select the system default.
+# Font family, should be a font installed on your system or a generic one
+# like "Sans" or "Monospace". Fallback to a default font if not found or
+# not specified
 family = ""
 
 slant = "normal"    # font slant, either "normal", "italic", or "oblique"
-weight = "normal"   # font weight, either "normal", or "bold"
+weight = "normal"   # font weight, "normal", "bold", etc. see help for full list
 
 # Input section configures the password input box.
 [input]
