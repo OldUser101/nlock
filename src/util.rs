@@ -116,7 +116,7 @@ pub enum FontSlant {
     Oblique,
 }
 
-impl From<FontSlant> for cairo::FontSlant {
+impl From<FontSlant> for pango::Style {
     fn from(value: FontSlant) -> Self {
         match value {
             FontSlant::Normal => Self::Normal,
@@ -129,15 +129,35 @@ impl From<FontSlant> for cairo::FontSlant {
 #[derive(Debug, Deserialize, Copy, Clone, ValueEnum)]
 #[serde(rename_all = "lowercase")]
 pub enum FontWeight {
+    Thin,
+    Ultralight,
+    Light,
+    Semilight,
+    Book,
     Normal,
+    Medium,
+    Semibold,
     Bold,
+    Ultrabold,
+    Heavy,
+    Ultraheavy,
 }
 
-impl From<FontWeight> for cairo::FontWeight {
+impl From<FontWeight> for pango::Weight {
     fn from(value: FontWeight) -> Self {
         match value {
+            FontWeight::Thin => Self::Thin,
+            FontWeight::Ultralight => Self::Ultralight,
+            FontWeight::Light => Self::Light,
+            FontWeight::Semilight => Self::Semilight,
+            FontWeight::Book => Self::Book,
             FontWeight::Normal => Self::Normal,
+            FontWeight::Medium => Self::Medium,
+            FontWeight::Semibold => Self::Semibold,
             FontWeight::Bold => Self::Bold,
+            FontWeight::Ultrabold => Self::Ultrabold,
+            FontWeight::Heavy => Self::Heavy,
+            FontWeight::Ultraheavy => Self::Ultraheavy,
         }
     }
 }
@@ -193,6 +213,15 @@ pub fn open_shm() -> Option<OwnedFd> {
 
     None
 }
+
+#[inline]
+/// Convert Pango units to pixels
+pub fn pango_pixels(d: i32) -> i32 {
+    (d + 512) >> 10
+}
+
+// Pango scale factor
+pub const PANGO_SCALE: i32 = 1024;
 
 // This helper function just checks if an `std::io::Error` was an EINTR
 pub fn is_eintr(err: &std::io::Error) -> bool {

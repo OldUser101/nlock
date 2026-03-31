@@ -3,13 +3,14 @@
 
 use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
-use tracing::warn;
+use pangocairo::functions::{create_layout, show_layout};
+use tracing::{debug, warn};
 
 use crate::{
     auth::AuthState,
     cairo_ext::CairoExt,
     config::NLockConfig,
-    util::{BackgroundImageScale, BackgroundType, InputVisibility},
+    util::{BackgroundImageScale, BackgroundType, InputVisibility, PANGO_SCALE, pango_pixels},
 };
 
 pub const DEFAULT_DPI: f64 = 96.0;
@@ -108,24 +109,27 @@ impl NLockRenderer {
         Ok(())
     }
 
-    fn configure_cairo_font(&self, config: &NLockConfig, context: &cairo::Context) -> Result<()> {
-        let mut fo = cairo::FontOptions::new()?;
-        fo.set_hint_style(cairo::HintStyle::Full);
-        fo.set_antialias(cairo::Antialias::Subpixel);
-        fo.set_subpixel_order(self.subpixel_order.unwrap_or(cairo::SubpixelOrder::Default));
-
-        context.set_font_options(&fo);
-        context.select_font_face(
-            &config.font.family,
-            cairo::FontSlant::from(config.font.slant),
-            cairo::FontWeight::from(config.font.weight),
-        );
-
+    fn create_font(
+        &self,
+        config: &NLockConfig,
+        context: &cairo::Context,
+    ) -> Result<(pango::Layout, pango::FontMetrics)> {
         let dpi = self.dpi.unwrap_or(DEFAULT_DPI);
         let scale = self.scale.unwrap_or(DEFAULT_SCALE);
-        context.set_font_size((config.font.size / 72.0) * dpi * scale);
 
-        Ok(())
+        let mut fd = pango::FontDescription::new();
+        fd.set_family(&config.font.family);
+        fd.set_style(config.font.slant.into());
+        fd.set_weight(config.font.weight.into());
+        fd.set_absolute_size(((config.font.size / 72.0) * dpi * scale) * PANGO_SCALE as f64);
+
+        let layout = create_layout(context);
+        layout.set_font_description(Some(&fd));
+
+        let p_ctx = layout.context();
+        let metrics = p_ctx.metrics(Some(&fd), None);
+
+        Ok((layout, metrics))
     }
 
     fn draw_rounded_rect(context: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
@@ -274,25 +278,27 @@ impl NLockRenderer {
             return Ok(());
         }
 
-        self.configure_cairo_font(config, context)?;
+        let (layout, metrics) = self.create_font(config, context)?;
 
-        let fe = context.font_extents()?;
+        let f_ascent = pango_pixels(metrics.ascent()) as f64;
+        let f_descent = pango_pixels(metrics.descent()) as f64;
 
         let padding_x = config.input.padding_x * buf_width;
         let padding_y = config.input.padding_y * buf_height;
 
         // Calculate text extents here, so input box width can be determined
         let text = config.input.mask_char.repeat(pwd_len);
-        let text_ext = context.text_extents(text.as_str())?;
+        layout.set_text(&text);
+        let text_ext = layout.pixel_extents().0; // use ink extents for drawing
 
         let mut inner_w = buf_width * config.input.width;
 
         if config.input.fit_to_content {
             // Cap computed width to specified width
-            inner_w = text_ext.width().min(inner_w);
+            inner_w = (text_ext.width() as f64).min(inner_w);
         }
 
-        let inner_h = fe.height();
+        let inner_h = f_ascent + f_descent;
         let inner_x = (buf_width - inner_w) / 2.0;
         let inner_y = (buf_height - inner_h) / 2.0;
 
@@ -324,13 +330,13 @@ impl NLockRenderer {
         context.rectangle(inner_x, inner_y, inner_w, inner_h);
         context.clip();
 
-        let text_x = inner_x + (inner_w - text_ext.width()) / 2.0 - text_ext.x_bearing();
-        let text_y = inner_y + (inner_h - fe.descent()) / 2.0 + fe.ascent() / 2.0;
+        let text_x = inner_x + (inner_w - (text_ext.width() as f64)) / 2.0 - (text_ext.x() as f64);
+        let text_y = inner_y + (inner_h - text_ext.height() as f64) / 2.0 - (text_ext.y() as f64);
 
         // Actually draw the text
         context.ext_set_source_rgba(config.colors.text);
         context.move_to(text_x, text_y);
-        context.show_text(text.as_str())?;
+        show_layout(context, &layout);
 
         context.restore()?;
 

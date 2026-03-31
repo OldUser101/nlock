@@ -56,6 +56,7 @@
               cargo
               rustc
               rustfmt
+              rust-analyzer
               pre-commit
               rustPackages.clippy
 
@@ -65,6 +66,7 @@
               glib
               libxkbcommon
               pam
+              pango
               pkg-config
             ];
 
