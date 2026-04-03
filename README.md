@@ -2,16 +2,9 @@
 
 [![CI](https://github.com/OldUser101/nlock/actions/workflows/build_nix.yml/badge.svg)](https://github.com/OldUser101/nlock/actions/workflows/build_nix.yml)
 
-
 nlock is a customisable, minimalist screen locker for Wayland compositors.
 nlock uses the `ext-session-lock-v1` protocol, and should be compatible with
 any compositor that correctly implements it.
-
-## Mirrors
-
-- [GitHub](https://github.com/OldUser101/nlock) - development, mainly for free CI
-- [Codeberg](https://codeberg.org/OldUser101/nlock)
-- [Tangled](https://tangled.org/nathanjgill.uk/nlock)
 
 ## Usage
 
