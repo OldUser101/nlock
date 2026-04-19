@@ -6,6 +6,13 @@ nlock is a customisable, minimalist screen locker for Wayland compositors.
 nlock uses the `ext-session-lock-v1` protocol, and should be compatible with
 any compositor that correctly implements it.
 
+## Mirrors
+
+nlock source code can be found in a couple of places:
+
+- [GitHub](https://github.com/OldUser101/nlock), primary repository for development
+- [Tangled](https://tangled.org/nathanjgill.uk/nlock), mirrored, may become primary in the future!
+
 ## Usage
 
 See [the documentation](doc/toc.md).
