@@ -199,7 +199,7 @@ in
 
       image = {
         path = mkOption {
-          type = types.nullOr types.externalPath;
+          type = types.nullOr types.path;
           default = null;
           description = "Path to background image";
         };
