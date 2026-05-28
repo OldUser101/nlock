@@ -2,20 +2,20 @@
 // Copyright (C) 2026, Nathan Gill
 
 use std::{
-    os::fd::{AsFd, AsRawFd, BorrowedFd},
+    os::fd::{AsRawFd, BorrowedFd},
     sync::atomic::Ordering,
 };
 
 use anyhow::{Result, anyhow};
-use mio::{Events, Interest, Poll, Token, unix::SourceFd};
-use nix::{
-    sys::timerfd::{ClockId, Expiration, TimerFd, TimerFlags, TimerSetTimeFlags},
-    unistd::read,
-};
+use nix::errno::Errno;
 use tracing::warn;
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
-use crate::{auth::AuthState, state::NLockState, util::is_eintr};
+use crate::{
+    auth::AuthState,
+    event_loop::{Event, EventSource, EventTag},
+    state::NLockState,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(usize)]
@@ -37,133 +37,66 @@ impl EventType {
     }
 }
 
+impl From<EventType> for EventTag {
+    fn from(value: EventType) -> Self {
+        value as usize
+    }
+}
+
 impl NLockState {
-    pub fn set_timer(&mut self, id: usize, expiration: Expiration) -> Result<()> {
-        let repeat_timer = TimerFd::new(ClockId::CLOCK_MONOTONIC, TimerFlags::empty())?;
-        repeat_timer.set(expiration, TimerSetTimeFlags::empty())?;
-
-        let mut repeat_timer_src = SourceFd(&repeat_timer.as_fd().as_raw_fd());
-
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
-        poll.registry()
-            .register(&mut repeat_timer_src, Token(id), Interest::READABLE)?;
-
-        self.timers.push((repeat_timer, id));
-
-        Ok(())
-    }
-
-    pub fn unset_timer(&mut self, id: usize) -> Result<()> {
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
-        let mut i = 0;
-        while i < self.timers.len() {
-            if self.timers[i].1 == id {
-                poll.registry()
-                    .deregister(&mut SourceFd(&self.timers[i].0.as_fd().as_raw_fd()))?;
-                self.timers.swap_remove(i);
-            } else {
-                i += 1;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn setup_poll(&mut self) -> Result<()> {
-        let poll = Poll::new()?;
-
-        // Register the auth response file descriptor
-        poll.registry().register(
-            &mut SourceFd(&self.auth_comm.response.rx().as_raw_fd()),
-            Token(EventType::AuthStateChanged as usize),
-            Interest::READABLE,
+    fn poll_events(&mut self, wayland_sock_fd: BorrowedFd<'_>) -> Result<Vec<Event>> {
+        self.event_loop.add(
+            EventSource::Fd(wayland_sock_fd.as_raw_fd()),
+            EventType::Wayland.into(),
         )?;
 
-        self.poll = Some(poll);
-        Ok(())
-    }
+        let events = match self.event_loop.poll() {
+            Ok(evs) => evs,
+            Err(Errno::EINTR) => Vec::new(),
+            Err(e) => return Err(anyhow!("Error during poll: {e}")),
+        };
 
-    fn poll_events(&mut self, events: &mut Events, wayland_sock_fd: BorrowedFd<'_>) -> Result<()> {
-        let mut wayland_sock_src = SourceFd(&wayland_sock_fd.as_raw_fd());
+        self.event_loop.remove(EventType::Wayland.into());
 
-        let poll = self
-            .poll
-            .as_mut()
-            .ok_or(anyhow!("Poll has not been created yet"))?;
-
-        {
-            // Register the Wayland file descriptor with the poll
-            poll.registry().register(
-                &mut wayland_sock_src,
-                Token(EventType::Wayland as usize),
-                Interest::READABLE,
-            )?;
-
-            match poll.poll(events, None) {
-                Ok(_) => {}
-                Err(e) if is_eintr(&e) => {}
-                Err(e) => return Err(anyhow!("Error during epoll: {e}")),
-            }
-
-            poll.registry().deregister(&mut wayland_sock_src)?;
-        }
-
-        Ok(())
+        Ok(events)
     }
 
     fn process_events(
         &mut self,
-        events: &Events,
+        events: Vec<Event>,
         read_guard: ReadEventsGuard,
         event_queue: &mut EventQueue<NLockState>,
     ) -> Result<()> {
         let mut wayland_sock_ready = false;
         for event in events {
-            match EventType::from_usize(event.token().0)? {
-                EventType::Wayland => {
-                    wayland_sock_ready = true;
-                }
-                EventType::KeyboardRepeat => {
-                    if let Some(idx) = self
-                        .timers
-                        .iter()
-                        .position(|timer| timer.1 == EventType::KeyboardRepeat as usize)
-                    {
-                        let timer = &self.timers[idx];
-                        let mut buf = [0u8; std::mem::size_of::<u64>()];
-                        let res = read(&timer.0, &mut buf)?;
-                        if res == std::mem::size_of::<u64>() {
-                            let intervals = u64::from_ne_bytes(buf);
-                            for _ in 0..intervals {
-                                self.handle_repeat_event();
-                            }
+            match event {
+                Event::Readable { fd: _, tag } => match EventType::from_usize(tag)? {
+                    EventType::Wayland => {
+                        wayland_sock_ready = true;
+                    }
+                    EventType::AuthStateChanged => match self.auth_comm.response.read() {
+                        Ok(true) => {
+                            // auth was successful, set flags for exit
+                            self.auth_state.store(AuthState::Success, Ordering::Relaxed);
+                            self.running.store(false, Ordering::Relaxed);
+                            self.state_changed.store(true, Ordering::Relaxed);
                         }
+                        Ok(false) => {
+                            // auth failed, set fail state
+                            self.auth_state.store(AuthState::Fail, Ordering::Relaxed);
+                            self.state_changed.store(true, Ordering::Relaxed);
+                        }
+                        Err(e) => {
+                            warn!("Failed to receive auth response: {e}");
+                        }
+                    },
+                    _ => {}
+                },
+                Event::Timeout { tag } => {
+                    if EventType::from_usize(tag)? == EventType::KeyboardRepeat {
+                        self.handle_repeat_event();
                     }
                 }
-                EventType::AuthStateChanged => match self.auth_comm.response.read() {
-                    Ok(true) => {
-                        // auth was successful, set flags for exit
-                        self.auth_state.store(AuthState::Success, Ordering::Relaxed);
-                        self.running.store(false, Ordering::Relaxed);
-                        self.state_changed.store(true, Ordering::Relaxed);
-                    }
-                    Ok(false) => {
-                        // auth failed, set fail state
-                        self.auth_state.store(AuthState::Fail, Ordering::Relaxed);
-                        self.state_changed.store(true, Ordering::Relaxed);
-                    }
-                    Err(e) => {
-                        warn!("Failed to receive auth response: {e}");
-                    }
-                },
             }
         }
 
@@ -200,12 +133,6 @@ impl NLockState {
     }
 
     pub fn event_loop_cycle(&mut self, event_queue: &mut EventQueue<NLockState>) -> Result<()> {
-        if self.poll.is_none() {
-            self.setup_poll()?;
-        }
-
-        let mut events = Events::with_capacity(64);
-
         event_queue.flush()?;
         event_queue.dispatch_pending(self)?;
 
@@ -214,8 +141,8 @@ impl NLockState {
             .ok_or(anyhow!("Failed to obtain Wayland event read guard"))?;
         let wayland_sock_fd = read_guard.connection_fd();
 
-        self.poll_events(&mut events, wayland_sock_fd)?;
-        self.process_events(&events, read_guard, event_queue)?;
+        let events = self.poll_events(wayland_sock_fd)?;
+        self.process_events(events, read_guard, event_queue)?;
         self.re_render(&event_queue.handle());
 
         Ok(())

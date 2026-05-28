@@ -10,7 +10,6 @@ use std::{
 use clap::ValueEnum;
 use nix::{
     fcntl::OFlag,
-    libc,
     sys::{
         mman::{shm_open, shm_unlink},
         stat::Mode,
@@ -222,14 +221,6 @@ pub fn pango_pixels(d: i32) -> i32 {
 
 // Pango scale factor
 pub const PANGO_SCALE: i32 = 1024;
-
-// This helper function just checks if an `std::io::Error` was an EINTR
-pub fn is_eintr(err: &std::io::Error) -> bool {
-    match err.raw_os_error() {
-        Some(code) => code == libc::EINTR,
-        None => false,
-    }
-}
 
 const PNG_SIG: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 
