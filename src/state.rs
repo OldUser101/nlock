@@ -4,14 +4,13 @@
 use std::{
     fs::File,
     io::Seek,
+    os::fd::AsRawFd,
     sync::{Arc, atomic::AtomicBool},
 };
 
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
 use gdk_pixbuf::Pixbuf;
-use mio::Poll;
-use nix::sys::timerfd::TimerFd;
 use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
@@ -26,16 +25,16 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
-use crate::config::NLockConfig;
-use crate::util::BackgroundType;
 use crate::{
     auth::AuthChannel,
     cairo_ext::{ImageSurfaceExt, SubpixelOrderExt},
+    event_loop::{EventSource, NLockEventLoop},
 };
 use crate::{
     auth::{AtomicAuthState, AuthState},
     util::detect_png,
 };
+use crate::{config::NLockConfig, event::EventType, util::BackgroundType};
 use crate::{
     seat::{NLockSeat, NLockXkb},
     surface::NLockSurface,
@@ -59,11 +58,10 @@ pub struct NLockState {
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
-    pub poll: Option<Poll>,
-    pub timers: Vec<(TimerFd, usize)>,
     pub auth_comm: Arc<AuthChannel>,
     pub auth_state: Arc<AtomicAuthState>,
     pub background_image: Option<cairo::ImageSurface>,
+    pub event_loop: NLockEventLoop,
 }
 
 impl NLockState {
@@ -90,11 +88,10 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            poll: None,
-            timers: Vec::new(),
             auth_comm,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
             background_image: None,
+            event_loop: NLockEventLoop::default(),
         };
 
         if let Err(e) = s.try_load_background_image() {
@@ -104,6 +101,11 @@ impl NLockState {
                 e
             );
         }
+
+        s.event_loop.add(
+            EventSource::Fd(s.auth_comm.response.rx().as_raw_fd()),
+            EventType::AuthStateChanged.into(),
+        )?;
 
         Ok(s)
     }

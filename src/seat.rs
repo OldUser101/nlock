@@ -4,7 +4,6 @@
 use std::{os::fd::OwnedFd, sync::atomic::Ordering, time::Duration};
 
 use anyhow::{Result, anyhow};
-use nix::sys::{time::TimeSpec, timerfd::Expiration};
 use tracing::{debug, warn};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
@@ -12,7 +11,11 @@ use wayland_client::{
 };
 use xkbcommon::xkb;
 
-use crate::{event::EventType, state::NLockState};
+use crate::{
+    event::EventType,
+    event_loop::{EventSource, Expiration},
+    state::NLockState,
+};
 
 pub struct NLockXkb {
     pub context: xkb::Context,
@@ -122,11 +125,8 @@ impl NLockState {
             self.process_key(keysym, codepoint);
         }
 
-        if self.seat.repeat_timer_set
-            && let Err(e) = self.unset_timer(EventType::KeyboardRepeat as usize)
-        {
-            return Err(e);
-        } else {
+        if self.seat.repeat_timer_set {
+            self.event_loop.remove(EventType::KeyboardRepeat.into());
             self.seat.repeat_timer_set = false;
         }
 
@@ -138,13 +138,12 @@ impl NLockState {
 
             let repeat_delay_duration = Duration::from_millis(self.seat.repeat_delay as u64);
             let repeat_rate_duration = Duration::from_millis(self.seat.repeat_rate as u64);
-
-            self.set_timer(
-                EventType::KeyboardRepeat as usize,
-                Expiration::IntervalDelayed(
-                    TimeSpec::from_duration(repeat_delay_duration),
-                    TimeSpec::from_duration(repeat_rate_duration),
-                ),
+            self.event_loop.add(
+                EventSource::Timer(Expiration::IntervalDelayed(
+                    repeat_delay_duration,
+                    repeat_rate_duration,
+                )),
+                EventType::KeyboardRepeat.into(),
             )?;
 
             self.seat.repeat_timer_set = true;

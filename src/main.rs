@@ -8,6 +8,7 @@ pub mod cairo_ext;
 pub mod comm;
 pub mod config;
 pub mod event;
+pub mod event_loop;
 pub mod render;
 pub mod seat;
 pub mod state;
