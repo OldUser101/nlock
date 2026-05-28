@@ -4,7 +4,7 @@
 use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
 use pangocairo::functions::{create_layout, show_layout};
-use tracing::{debug, warn};
+use tracing::warn;
 
 use crate::{
     auth::AuthState,
