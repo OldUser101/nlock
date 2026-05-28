@@ -5,5 +5,5 @@ may not be completely up to date.
 
 ## Table of Contents
 
-- [Command Line](cli.md)
-- [Configuration](config.md)
+- [Command Line](./cli.md)
+- [Configuration](./config.md)
