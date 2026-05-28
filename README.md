@@ -44,6 +44,10 @@ The generated binary should be located at `target/release/nlock`.
 `/etc/pam.d` on your system. The configuration can be found in the `pam`
 directory of this repository.
 
+## Demo
+
+![](https://ngill.net/demo/nlock.jpg)
+
 ## Credits
 
 Several other projects have been very helpful during development of nlock:
