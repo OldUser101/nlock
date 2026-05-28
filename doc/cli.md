@@ -37,7 +37,8 @@ The following correspond directly to configuration options. See
 - `--fit-to-content <BOOL>`, resize the input box to fit password
 - `--frame-radius <FLOAT>`, sets the border radius of the frame
 - `--frame-border <FLOAT>`, sets the border width of the frame
-- `--allow-empty-password <BOOL>`, validate empty passwords
+- `--allow-empty-password <BOOL>`, validate empty passwords, this option is
+    only supported on Linux targets
 - `--hide-cursor <BOOL>`, hide the mouse cursor
 - `--bg-type <BACKGROUND TYPE>`, sets the background type
 - `--image-path <PATH>`, path to a background image

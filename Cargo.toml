@@ -6,15 +6,15 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 atomic_enum = "0.3.0"
-cairo-rs = { version = "0.22.0", features = [ "png" ] }
+cairo-rs = { version = "0.22.0", features = ["png"] }
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["derive"] }
 clap_complete = "4.5.64"
 config = "0.15.18"
 dirs = "6.0.0"
 gdk-pixbuf = "0.21.5"
-mio = { version = "1.1.1", features = [ "os-ext", "os-poll" ] }
-nix = { version = "0.30.1", features = [ "event", "fs", "mman", "process", "time" ] }
+mio = { version = "1.1.1", features = ["os-ext", "os-poll"] }
+nix = { version = "0.31.3", features = ["event", "fs", "mman", "process", "time"] }
 pam-rs = "0.9.5"
 pango = "0.22.0"
 pangocairo = "0.22.0"
@@ -23,7 +23,7 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
 uzers = "0.12.1"
 wayland-client = "0.31.11"
-wayland-protocols = { version = "0.32.9", features = [ "client", "staging" ] }
+wayland-protocols = { version = "0.32.9", features = ["client", "staging"] }
 xkbcommon = "0.9.0"
 zeroize = "1.8.2"
 
