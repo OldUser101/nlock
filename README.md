@@ -11,7 +11,7 @@ any compositor that correctly implements it.
 nlock source code can be found in a couple of places:
 
 - [GitHub](https://github.com/OldUser101/nlock), primary repository for development
-- [Tangled](https://tangled.org/nathanjgill.uk/nlock), mirrored, may become primary in the future!
+- [Tangled](https://tangled.org/ngill.net/nlock), mirrored, may become primary in the future!
 
 ## Usage
 
@@ -25,11 +25,11 @@ compile with the latest stable Rust, I haven't tested older versions.
 In addition, you'll need development libraries for the following, which can
 probably be installed via your system package manager:
 
-- Clang
-- GLib
-- GDK-Pixbuf
-- PAM
-- Cairo
+- glib
+- gdk-pixbuf
+- pam
+- cairo
+- pango
 - xkbcommon
 
 With all of that, you should just be able to clone this repository, and run:
@@ -38,7 +38,7 @@ With all of that, you should just be able to clone this repository, and run:
 $ cargo build --release
 ```
 
-The generated binary should then be located at `target/release/nlock`.
+The generated binary should be located at `target/release/nlock`.
 
 **IMPORTANT:** You may need to copy the PAM configuration for nlock into
 `/etc/pam.d` on your system. The configuration can be found in the `pam`
