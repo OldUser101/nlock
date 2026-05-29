@@ -97,10 +97,16 @@ impl NLockEventLoop {
 
         let timeout = self
             .next_expiry()
-            .map(|d| i32::try_from(d.as_millis()).unwrap_or(i32::MAX))
+            .map(|d| libc::c_int::try_from(d.as_millis()).unwrap_or(libc::c_int::MAX))
             .unwrap_or(PollTimeout::NONE.into());
 
-        let res = unsafe { libc::poll(poll_fds.as_mut_ptr(), poll_fds.len() as u64, timeout) };
+        let res = unsafe {
+            libc::poll(
+                poll_fds.as_mut_ptr(),
+                poll_fds.len() as libc::nfds_t,
+                timeout,
+            )
+        };
         if res == -1 {
             return Err(Errno::last());
         }
