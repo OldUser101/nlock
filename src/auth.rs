@@ -8,7 +8,6 @@ use atomic_enum::atomic_enum;
 use nix::{
     errno::Errno,
     poll::{PollFd, PollFlags, PollTimeout},
-    sys::eventfd::EventFd,
 };
 use pam_rs::{Client, PamFlag};
 use tracing::{debug, warn};
@@ -19,7 +18,7 @@ use crate::{comm::PipeCommChannel, config::NLockConfig};
 pub struct AuthChannel {
     pub request: PipeCommChannel<String>,
     pub response: PipeCommChannel<bool>,
-    pub stop_ev: EventFd,
+    pub stop: PipeCommChannel<bool>,
 }
 
 impl AuthChannel {
@@ -27,7 +26,7 @@ impl AuthChannel {
         Ok(Self {
             request: PipeCommChannel::new()?,
             response: PipeCommChannel::new()?,
-            stop_ev: EventFd::new()?,
+            stop: PipeCommChannel::new()?,
         })
     }
 }
@@ -103,7 +102,7 @@ pub fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<
 
     loop {
         let req_fd = PollFd::new(auth_comm.request.rx().as_fd(), PollFlags::POLLIN);
-        let stop_fd = PollFd::new(auth_comm.stop_ev.as_fd(), PollFlags::POLLIN);
+        let stop_fd = PollFd::new(auth_comm.stop.rx().as_fd(), PollFlags::POLLIN);
 
         let mut events = [req_fd, stop_fd];
 
