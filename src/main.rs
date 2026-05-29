@@ -117,11 +117,11 @@ fn main() {
     match NLockConfig::load(&args) {
         Ok(cfg) => {
             if let Err(e) = start(cfg) {
-                error!("{:#?}", e);
+                error!("{:?}", e);
             }
         }
         Err(e) => {
-            error!("Error loading configuration: {:#?}", e);
+            error!("Error loading configuration: {:?}", e);
             return;
         }
     }
