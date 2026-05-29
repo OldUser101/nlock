@@ -96,7 +96,7 @@ fn start(config: NLockConfig) -> Result<()> {
     state.unlock(&qh);
     event_queue.roundtrip(&mut state)?;
 
-    if let Err(e) = auth_comm.stop_ev.write(1) {
+    if let Err(e) = auth_comm.stop.write(true) {
         warn!("Failed to stop auth loop: {e}");
     }
 
