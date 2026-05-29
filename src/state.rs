@@ -10,7 +10,6 @@ use std::{
 
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
-use gdk_pixbuf::Pixbuf;
 use tracing::{debug, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
@@ -25,9 +24,12 @@ use wayland_protocols::ext::session_lock::v1::client::{
 };
 use zeroize::Zeroizing;
 
+#[cfg(feature = "gdk-pixbuf")]
+use {crate::cairo_ext::ImageSurfaceExt, gdk_pixbuf::Pixbuf};
+
 use crate::{
     auth::AuthChannel,
-    cairo_ext::{ImageSurfaceExt, SubpixelOrderExt},
+    cairo_ext::SubpixelOrderExt,
     event_loop::{EventSource, NLockEventLoop},
 };
 use crate::{
@@ -171,13 +173,23 @@ impl NLockState {
             let image_surface = ImageSurface::create_from_png(&mut image_file)?;
             self.background_image = Some(image_surface);
         } else {
-            let pixbuf = Pixbuf::from_read(image_file)?;
-            let pixbuf = pixbuf
-                .apply_embedded_orientation()
-                .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
+            #[cfg(feature = "gdk-pixbuf")]
+            {
+                let pixbuf = Pixbuf::from_read(image_file)?;
+                let pixbuf = pixbuf
+                    .apply_embedded_orientation()
+                    .ok_or(anyhow!("Failed to apply embedded image orientation"))?;
 
-            let image_surface = ImageSurface::create_from_pixbuf(&pixbuf)?;
-            self.background_image = Some(image_surface);
+                let image_surface = ImageSurface::create_from_pixbuf(&pixbuf)?;
+                self.background_image = Some(image_surface);
+            }
+
+            #[cfg(not(feature = "gdk-pixbuf"))]
+            {
+                return Err(anyhow!(
+                    "Non-PNG formats require GDK-Pixbuf support, but nlock was compiled without it"
+                ));
+            }
         }
 
         self.config.general.bg_type = BackgroundType::Image;
