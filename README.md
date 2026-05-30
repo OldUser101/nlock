@@ -25,12 +25,17 @@ compile with the latest stable Rust, I haven't tested older versions.
 In addition, you'll need development libraries for the following, which can
 probably be installed via your system package manager:
 
+- clang
 - glib
-- gdk-pixbuf
+- gdk-pixbuf (optional, provides support for non-PNG image formats)
 - pam
 - cairo
-- pango
+- pango (optional, provides support for system font loading)
 - xkbcommon
+
+gdk-pixbuf and pango are both optional, and are enabled with the features
+`gdk-pixbuf` and `pango` respectively. These features are enabled by default,
+you will need to disable them if you do not plan on using these libraries.
 
 With all of that, you should just be able to clone this repository, and run:
 
