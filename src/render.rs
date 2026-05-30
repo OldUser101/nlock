@@ -3,14 +3,14 @@
 
 use anyhow::{Result, anyhow, bail};
 use cairo::SurfacePattern;
-use pangocairo::functions::{create_layout, show_layout};
 use tracing::warn;
 
 use crate::{
     auth::AuthState,
     cairo_ext::CairoExt,
     config::NLockConfig,
-    util::{BackgroundImageScale, BackgroundType, InputVisibility, PANGO_SCALE, pango_pixels},
+    font::{FontInfo, NLockFont, ShowText, TextInfo},
+    util::{BackgroundImageScale, BackgroundType, InputVisibility},
 };
 
 pub const DEFAULT_DPI: f64 = 96.0;
@@ -107,29 +107,6 @@ impl NLockRenderer {
         context.identity_matrix();
 
         Ok(())
-    }
-
-    fn create_font(
-        &self,
-        config: &NLockConfig,
-        context: &cairo::Context,
-    ) -> Result<(pango::Layout, pango::FontMetrics)> {
-        let dpi = self.dpi.unwrap_or(DEFAULT_DPI);
-        let scale = self.scale.unwrap_or(DEFAULT_SCALE);
-
-        let mut fd = pango::FontDescription::new();
-        fd.set_family(&config.font.family);
-        fd.set_style(config.font.slant.into());
-        fd.set_weight(config.font.weight.into());
-        fd.set_absolute_size(((config.font.size / 72.0) * dpi * scale) * PANGO_SCALE as f64);
-
-        let layout = create_layout(context);
-        layout.set_font_description(Some(&fd));
-
-        let p_ctx = layout.context();
-        let metrics = p_ctx.metrics(Some(&fd), None);
-
-        Ok((layout, metrics))
     }
 
     fn draw_rounded_rect(context: &cairo::Context, x: f64, y: f64, w: f64, h: f64, r: f64) {
@@ -278,27 +255,34 @@ impl NLockRenderer {
             return Ok(());
         }
 
-        let (layout, metrics) = self.create_font(config, context)?;
+        let text = config.input.mask_char.repeat(pwd_len);
 
-        let f_ascent = pango_pixels(metrics.ascent()) as f64;
-        let f_descent = pango_pixels(metrics.descent()) as f64;
+        // TODO: keep font across render cycles?
+        #[cfg(not(feature = "pango"))]
+        let font = {
+            let mut font =
+                NLockFont::new(config, context, self.dpi, self.scale, self.subpixel_order)?;
+            font.set_text(context, text)?;
+            font
+        };
+        #[cfg(feature = "pango")]
+        let font = {
+            let mut font = NLockFont::new(config, context, self.dpi, self.scale);
+            font.set_text(text);
+            font
+        };
 
         let padding_x = config.input.padding_x * buf_width;
         let padding_y = config.input.padding_y * buf_height;
-
-        // Calculate text extents here, so input box width can be determined
-        let text = config.input.mask_char.repeat(pwd_len);
-        layout.set_text(&text);
-        let text_ext = layout.pixel_extents().0; // use ink extents for drawing
 
         let mut inner_w = buf_width * config.input.width;
 
         if config.input.fit_to_content {
             // Cap computed width to specified width
-            inner_w = (text_ext.width() as f64).min(inner_w);
+            inner_w = font.text_width().min(inner_w);
         }
 
-        let inner_h = f_ascent + f_descent;
+        let inner_h = font.font_height();
         let inner_x = (buf_width - inner_w) / 2.0;
         let inner_y = (buf_height - inner_h) / 2.0;
 
@@ -330,13 +314,13 @@ impl NLockRenderer {
         context.rectangle(inner_x, inner_y, inner_w, inner_h);
         context.clip();
 
-        let text_x = inner_x + (inner_w - (text_ext.width() as f64)) / 2.0 - (text_ext.x() as f64);
-        let text_y = inner_y + (inner_h - text_ext.height() as f64) / 2.0 - (text_ext.y() as f64);
+        let text_x = inner_x + (inner_w - font.text_width()) / 2.0 - font.text_x();
+        let text_y = inner_y + (inner_h - font.text_height()) / 2.0 - font.text_y();
 
         // Actually draw the text
         context.ext_set_source_rgba(config.colors.text);
         context.move_to(text_x, text_y);
-        show_layout(context, &layout);
+        font.show_text(context)?;
 
         context.restore()?;
 

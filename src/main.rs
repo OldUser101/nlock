@@ -9,6 +9,7 @@ pub mod comm;
 pub mod config;
 pub mod event;
 pub mod event_loop;
+pub mod font;
 pub mod render;
 pub mod seat;
 pub mod state;
