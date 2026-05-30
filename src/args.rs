@@ -12,8 +12,9 @@ use clap::{
 };
 use clap_complete::{Shell, aot::generate as generate_completions};
 
-use crate::util::{
-    BackgroundImageScale, BackgroundType, FontSlant, FontWeight, InputVisibility, LogLevel, Rgba,
+use crate::{
+    font::{FontSlant, FontWeight},
+    util::{BackgroundImageScale, BackgroundType, InputVisibility, LogLevel, Rgba},
 };
 
 /// Customisable, minimalist screen locker for Wayland
