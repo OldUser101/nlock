@@ -21,6 +21,19 @@ fn main() {
         long_version.push(')');
     }
 
+    let mut features = Vec::new();
+    if cfg!(feature = "gdk-pixbuf") {
+        features.push("gdk-pixbuf");
+    }
+    if cfg!(feature = "pango") {
+        features.push("pango");
+    }
+    if !features.is_empty() {
+        long_version.push_str(" (");
+        long_version.push_str(features.join(" ").trim());
+        long_version.push(')');
+    }
+
     println!("cargo:rustc-env=NLOCK_VERSION={version}");
     println!("cargo:rustc-env=NLOCK_LONG_VERSION={long_version}");
 

@@ -12,6 +12,8 @@
   pkg-config,
   version ? "git",
   shortRev ? "unknown",
+  gdkPixbufSupport ? true,
+  pangoSupport ? true,
 }:
 
 rustPlatform.buildRustPackage {
@@ -24,6 +26,10 @@ rustPlatform.buildRustPackage {
     lockFile = ../Cargo.lock;
   };
 
+  buildNoDefaultFeatures = true;
+  buildFeatures =
+    [ ] ++ (lib.optional gdkPixbufSupport "gdk-pixbuf") ++ (lib.optional pangoSupport "pango");
+
   nativeBuildInputs = [
     installShellFiles
     clang
@@ -32,12 +38,12 @@ rustPlatform.buildRustPackage {
 
   buildInputs = [
     cairo
-    gdk-pixbuf
     glib
     libxkbcommon
     pam
-    pango
-  ];
+  ]
+  ++ (lib.optional gdkPixbufSupport gdk-pixbuf)
+  ++ (lib.optional pangoSupport pango);
 
   postInstall = ''
     installShellCompletion --cmd nlock \
