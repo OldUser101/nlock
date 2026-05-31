@@ -39,4 +39,8 @@ fn main() {
 
     println!("cargo:rerun-if-env-changed=NLOCK_VERSION");
     println!("cargo:rerun-if-env-changed=NLOCK_COMMIT");
+
+    if cfg!(not(target_os = "openbsd")) {
+        println!("cargo:rustc-link-lib=pam");
+    }
 }
