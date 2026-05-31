@@ -25,10 +25,9 @@ compile with the latest stable Rust, I haven't tested older versions.
 In addition, you'll need development libraries for the following, which can
 probably be installed via your system package manager:
 
-- clang
 - glib
 - gdk-pixbuf (optional, provides support for non-PNG image formats)
-- pam
+- pam (except openbsd)
 - cairo
 - pango (optional, provides support for system font loading)
 - xkbcommon
@@ -36,6 +35,10 @@ probably be installed via your system package manager:
 gdk-pixbuf and pango are both optional, and are enabled with the features
 `gdk-pixbuf` and `pango` respectively. These features are enabled by default,
 you will need to disable them if you do not plan on using these libraries.
+
+On OpenBSD targets, BSD Authentication is natively supported and will be
+selected as the authentication backend automatically, PAM is not required
+in this case.
 
 With all of that, you should just be able to clone this repository, and run:
 
