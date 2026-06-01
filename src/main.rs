@@ -30,7 +30,7 @@ use wayland_client::Connection;
 
 use crate::{
     args::run_cli,
-    auth::{AuthChannel, setup_auth},
+    auth::{AuthChannel, AuthConfig, setup_auth},
     config::NLockConfig,
     state::NLockState,
 };
@@ -46,6 +46,7 @@ fn start(config: NLockConfig) -> Result<()> {
     let display = conn.display();
 
     let auth_comm = Arc::new(AuthChannel::new()?);
+    let auth_config: AuthConfig = (&config).into();
 
     let mut state = NLockState::new(config, display, auth_comm.clone())?;
 
@@ -76,7 +77,7 @@ fn start(config: NLockConfig) -> Result<()> {
     }
 
     // spawn the auth thread
-    let handle = setup_auth(auth_comm.clone())?;
+    let handle = setup_auth(auth_config, auth_comm.clone())?;
 
     state.lock(&qh);
 

@@ -350,7 +350,6 @@ fn default_frame_radius() -> f64 {
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct NLockConfigGeneral {
-    #[cfg(target_os = "linux")]
     #[serde(default = "default_pwd_allow_empty", rename = "allowEmptyPassword")]
     pub pwd_allow_empty: bool,
 
@@ -364,7 +363,6 @@ pub struct NLockConfigGeneral {
 impl Default for NLockConfigGeneral {
     fn default() -> Self {
         Self {
-            #[cfg(target_os = "linux")]
             pwd_allow_empty: default_pwd_allow_empty(),
             hide_cursor: default_hide_cursor(),
             bg_type: default_bg_type(),
@@ -374,14 +372,12 @@ impl Default for NLockConfigGeneral {
 
 impl LoadArgOverrides for NLockConfigGeneral {
     fn load_arg_overrides(&mut self, args: &NLockArgs) {
-        #[cfg(target_os = "linux")]
         set_if_some!(self.pwd_allow_empty, args.pwd_allow_empty);
         set_if_some!(self.hide_cursor, args.hide_cursor);
         set_if_some!(self.bg_type, args.bg_type);
     }
 }
 
-#[cfg(target_os = "linux")]
 fn default_pwd_allow_empty() -> bool {
     false
 }
