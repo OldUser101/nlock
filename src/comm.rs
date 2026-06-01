@@ -6,6 +6,8 @@ use std::{
 use anyhow::{Result, anyhow};
 use nix::errno::Errno;
 
+use crate::auth::AuthState;
+
 /// A one-way pipe based communication channel
 pub struct PipeCommChannel<T> {
     tx: OwnedFd,
@@ -106,6 +108,16 @@ impl AsBytes for bool {
     }
 }
 
+impl AsBytes for AuthState {
+    fn as_bytes(&self) -> &[u8] {
+        match self {
+            Self::Idle => &[0u8],
+            Self::Success => &[1u8],
+            Self::Fail => &[2u8],
+        }
+    }
+}
+
 pub trait FromBytes {
     /// Convert from a bytes-like representation of the object
     fn from_bytes(bytes: &[u8]) -> Option<Self>
@@ -133,6 +145,23 @@ impl FromBytes for bool {
         match bytes[0] {
             0u8 => Some(false),
             1u8 => Some(true),
+            _ => None,
+        }
+    }
+}
+
+impl FromBytes for AuthState {
+    fn from_bytes(bytes: &[u8]) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if bytes.len() != 1 {
+            return None;
+        }
+        match bytes[0] {
+            0u8 => Some(Self::Idle),
+            1u8 => Some(Self::Success),
+            2u8 => Some(Self::Fail),
             _ => None,
         }
     }

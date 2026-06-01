@@ -3,7 +3,6 @@
   rustPlatform,
   installShellFiles,
   cairo,
-  clang,
   gdk-pixbuf,
   glib,
   libxkbcommon,
@@ -32,7 +31,6 @@ rustPlatform.buildRustPackage {
 
   nativeBuildInputs = [
     installShellFiles
-    clang
     pkg-config
   ];
 
@@ -52,7 +50,6 @@ rustPlatform.buildRustPackage {
       --fish <($out/bin/nlock completions fish)
   '';
 
-  LIBCLANG_PATH = "${clang.cc.lib}/lib";
   NLOCK_COMMIT = "${shortRev}"; # used to generate version string
 
   meta = with lib; {

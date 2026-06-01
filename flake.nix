@@ -61,7 +61,6 @@
               rustPackages.clippy
 
               cairo
-              clang
               gdk-pixbuf
               glib
               libxkbcommon
@@ -71,7 +70,6 @@
             ];
 
             RUST_SRC_PATH = rustPlatform.rustLibSrc;
-            LIBCLANG_PATH = "${clang.cc.lib}/lib";
           };
       });
     };

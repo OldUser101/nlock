@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::{os::fd::AsFd, sync::Arc};
+use std::{os::fd::AsFd, sync::Arc, thread::JoinHandle};
 
 use anyhow::{Result, anyhow};
 use atomic_enum::atomic_enum;
@@ -9,15 +9,14 @@ use nix::{
     errno::Errno,
     poll::{PollFd, PollFlags, PollTimeout},
 };
-use pam_rs::{Client, PamFlag};
 use tracing::{debug, warn};
 use zeroize::Zeroizing;
 
-use crate::{comm::PipeCommChannel, config::NLockConfig};
+use crate::{auth_sys::AuthClient, comm::PipeCommChannel, config::NLockConfig};
 
 pub struct AuthChannel {
     pub request: PipeCommChannel<String>,
-    pub response: PipeCommChannel<bool>,
+    pub response: PipeCommChannel<AuthState>,
     pub stop: PipeCommChannel<bool>,
 }
 
@@ -31,74 +30,68 @@ impl AuthChannel {
     }
 }
 
+#[derive(Debug)]
+pub struct AuthConfig {
+    pwd_allow_empty: bool,
+}
+
+impl From<&NLockConfig> for AuthConfig {
+    fn from(value: &NLockConfig) -> Self {
+        Self {
+            pwd_allow_empty: value.general.pwd_allow_empty,
+        }
+    }
+}
+
 #[atomic_enum]
+#[derive(PartialEq)]
 pub enum AuthState {
     Idle,
     Success,
     Fail,
 }
 
-pub struct AuthConfig {
-    #[cfg(target_os = "linux")]
-    pub allow_empty: bool,
-}
-
-impl AuthConfig {
-    #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
-    pub fn new(config: &NLockConfig) -> Self {
-        Self {
-            #[cfg(target_os = "linux")]
-            allow_empty: config.general.pwd_allow_empty,
-        }
-    }
-}
-
 #[cfg_attr(not(target_os = "linux"), allow(unused_variables))]
-fn authenticate(config: &AuthConfig, username: &str, password: Zeroizing<String>) -> Result<()> {
-    let mut client = Client::with_password("nlock")?;
-    client
-        .conversation_mut()
-        .set_credentials(username, password.as_str());
-
-    #[cfg_attr(not(target_os = "linux"), allow(unused_mut))]
-    let mut flags = PamFlag::None;
-
-    #[cfg(target_os = "linux")]
-    if !config.allow_empty {
-        flags = PamFlag::Disallow_Null_AuthTok;
-    }
-
-    client.authenticate(flags)?;
-
+fn authenticate(client: &mut AuthClient, password: Zeroizing<String>) -> Result<()> {
+    client.set_password(password);
+    client.authenticate()?;
     Ok(())
 }
 
 /// Handle an authentication request, returning a value to indicate success
-fn handle_auth_request(config: &AuthConfig, auth_comm: Arc<AuthChannel>, username: &str) -> bool {
+fn handle_auth_request(
+    config: &AuthConfig,
+    client: &mut AuthClient,
+    auth_comm: Arc<AuthChannel>,
+) -> AuthState {
     let pwd = match auth_comm.request.read().map(Zeroizing::new) {
         Ok(p) => p,
         Err(e) => {
             warn!("Auth comm error: {e}");
-            return false;
+            return AuthState::Fail;
         }
     };
 
-    match authenticate(config, username, pwd) {
-        Ok(()) => true,
+    if !config.pwd_allow_empty && pwd.is_empty() {
+        debug!("Auth request ignored, password is empty");
+        return AuthState::Idle;
+    }
+
+    match authenticate(client, pwd) {
+        Ok(()) => AuthState::Success,
         Err(e) => {
             warn!("Auth failed: {e}");
-            false
+            AuthState::Fail
         }
     }
 }
 
-pub fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<()> {
-    let username = uzers::get_current_username().ok_or(anyhow!("Current user does not exist"))?;
-    let username = username.to_string_lossy().to_string();
-
-    debug!("Running authenticator for '{username}'");
-
-    let mut success = false;
+fn auth_loop(
+    config: AuthConfig,
+    mut client: AuthClient,
+    auth_comm: Arc<AuthChannel>,
+) -> Result<()> {
+    let mut state = AuthState::Idle;
 
     loop {
         let req_fd = PollFd::new(auth_comm.request.rx().as_fd(), PollFlags::POLLIN);
@@ -115,11 +108,11 @@ pub fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<
                 }
 
                 // auth was requested for a password
-                if events[0].any().unwrap_or_default() && !success {
-                    success = handle_auth_request(&config, auth_comm.clone(), &username);
+                if events[0].any().unwrap_or_default() && state != AuthState::Success {
+                    state = handle_auth_request(&config, &mut client, auth_comm.clone());
 
                     // dump auth result in response pipe
-                    if let Err(e) = auth_comm.response.write(success) {
+                    if let Err(e) = auth_comm.response.write(state) {
                         warn!("Failed to write auth response: {e}");
                     }
                 }
@@ -130,4 +123,19 @@ pub fn run_auth_loop(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<
     }
 
     Ok(())
+}
+
+pub fn setup_auth(config: AuthConfig, auth_comm: Arc<AuthChannel>) -> Result<JoinHandle<()>> {
+    let client = AuthClient::new("nlock")?;
+
+    let handle = std::thread::spawn({
+        move || {
+            if let Err(e) = auth_loop(config, client, auth_comm) {
+                warn!("Error in auth thread: {e}");
+            }
+            debug!("Auth thread exited");
+        }
+    });
+
+    Ok(handle)
 }

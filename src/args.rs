@@ -102,7 +102,6 @@ pub struct NLockArgs {
 
     /// Validate empty passwords
     #[arg(long)]
-    #[cfg(target_os = "linux")]
     pub pwd_allow_empty: Option<bool>,
     /// Hide the mouse cursor
     #[arg(long)]

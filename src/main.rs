@@ -3,6 +3,7 @@
 
 pub mod args;
 pub mod auth;
+pub mod auth_sys;
 pub mod buffer;
 pub mod cairo_ext;
 pub mod comm;
@@ -29,7 +30,7 @@ use wayland_client::Connection;
 
 use crate::{
     args::run_cli,
-    auth::{AuthChannel, AuthConfig, run_auth_loop},
+    auth::{AuthChannel, AuthConfig, setup_auth},
     config::NLockConfig,
     state::NLockState,
 };
@@ -45,7 +46,7 @@ fn start(config: NLockConfig) -> Result<()> {
     let display = conn.display();
 
     let auth_comm = Arc::new(AuthChannel::new()?);
-    let auth_config = AuthConfig::new(&config);
+    let auth_config: AuthConfig = (&config).into();
 
     let mut state = NLockState::new(config, display, auth_comm.clone())?;
 
@@ -75,16 +76,8 @@ fn start(config: NLockConfig) -> Result<()> {
         bail!("Missing ExtSessionLockManagerV1");
     }
 
-    // spawn authenticator loop in another thread
-    std::thread::spawn({
-        let auth_comm = auth_comm.clone();
-        move || {
-            if let Err(e) = run_auth_loop(auth_config, auth_comm) {
-                warn!("Error in auth thread: {e}");
-            }
-            debug!("Auth thread exited");
-        }
-    });
+    // spawn the auth thread
+    let handle = setup_auth(auth_config, auth_comm.clone())?;
 
     state.lock(&qh);
 
@@ -99,6 +92,8 @@ fn start(config: NLockConfig) -> Result<()> {
 
     if let Err(e) = auth_comm.stop.write(true) {
         warn!("Failed to stop auth loop: {e}");
+    } else {
+        let _ = handle.join();
     }
 
     Ok(())

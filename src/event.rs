@@ -75,13 +75,16 @@ impl NLockState {
                         wayland_sock_ready = true;
                     }
                     EventType::AuthStateChanged => match self.auth_comm.response.read() {
-                        Ok(true) => {
+                        Ok(AuthState::Idle) => {
+                            // request was ignored by backend, do nothing
+                        }
+                        Ok(AuthState::Success) => {
                             // auth was successful, set flags for exit
                             self.auth_state.store(AuthState::Success, Ordering::Relaxed);
                             self.running.store(false, Ordering::Relaxed);
                             self.state_changed.store(true, Ordering::Relaxed);
                         }
-                        Ok(false) => {
+                        Ok(AuthState::Fail) => {
                             // auth failed, set fail state
                             self.auth_state.store(AuthState::Fail, Ordering::Relaxed);
                             self.state_changed.store(true, Ordering::Relaxed);
