@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026, Nathan Gill
+
 use time::{OffsetDateTime, format_description::well_known::Iso8601};
 
 /// build helper for generating version strings from environment
