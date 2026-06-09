@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026, Nathan Gill
+
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install Nix
+      uses: cachix/install-nix-action@v26
+
+    - uses: cachix/cachix-action@v17
+      with:
+        name: olduser101
+        authToken: ${{ secrets.CACHIX_AUTH_TOKEN }}
+
+    - name: Build nlock
+      run: nix build
+
