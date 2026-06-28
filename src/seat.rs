@@ -113,13 +113,13 @@ impl NLockState {
         key: u32,
         key_state: WEnum<wl_keyboard::KeyState>,
     ) -> Result<()> {
-        if self.xkb.state.is_none() {
+        let Some(xkb_state) = &self.xkb.state else {
             return Err(anyhow!("Xkb state not set"));
-        }
+        };
 
         let keycode = xkb::Keycode::new(key + 8);
-        let keysym = self.xkb.state.as_ref().unwrap().key_get_one_sym(keycode);
-        let codepoint = self.xkb.state.as_ref().unwrap().key_get_utf32(keycode);
+        let keysym = xkb_state.key_get_one_sym(keycode);
+        let codepoint = xkb_state.key_get_utf32(keycode);
 
         if let WEnum::Value(wl_keyboard::KeyState::Pressed) = key_state {
             self.process_key(keysym, codepoint);
@@ -167,15 +167,11 @@ impl NLockState {
         locked: u32,
         group: u32,
     ) -> Result<()> {
-        if self.xkb.state.is_none() {
+        let Some(xkb_state) = &mut self.xkb.state else {
             return Err(anyhow!("Xkb state not set"));
-        }
+        };
 
-        self.xkb
-            .state
-            .as_mut()
-            .unwrap()
-            .update_mask(depressed, latched, locked, 0, 0, group);
+        xkb_state.update_mask(depressed, latched, locked, 0, 0, group);
         Ok(())
     }
 }
