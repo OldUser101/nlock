@@ -8,39 +8,22 @@ use std::{
 
 use anyhow::{Result, anyhow};
 use nix::errno::Errno;
+use num_enum::{IntoPrimitive, TryFromPrimitive};
 use tracing::warn;
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
 use crate::{
     auth::AuthState,
-    event_loop::{Event, EventSource, EventTag},
+    event_loop::{Event, EventSource},
     state::NLockState,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, IntoPrimitive, TryFromPrimitive)]
 #[repr(usize)]
 pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
     AuthStateChanged = 2,
-}
-
-impl EventType {
-    fn from_usize(value: usize) -> Result<Self> {
-        match value {
-            0 => Ok(Self::Wayland),
-            1 => Ok(Self::KeyboardRepeat),
-            2 => Ok(Self::AuthStateChanged),
-
-            _ => Err(anyhow!("Invalid EventType value")),
-        }
-    }
-}
-
-impl From<EventType> for EventTag {
-    fn from(value: EventType) -> Self {
-        value as usize
-    }
 }
 
 impl NLockState {
@@ -70,7 +53,7 @@ impl NLockState {
         let mut wayland_sock_ready = false;
         for event in events {
             match event {
-                Event::Readable { fd: _, tag } => match EventType::from_usize(tag)? {
+                Event::Readable { fd: _, tag } => match EventType::try_from(tag)? {
                     EventType::Wayland => {
                         wayland_sock_ready = true;
                     }
@@ -96,7 +79,7 @@ impl NLockState {
                     _ => {}
                 },
                 Event::Timeout { tag } => {
-                    if EventType::from_usize(tag)? == EventType::KeyboardRepeat {
+                    if EventType::try_from(tag)? == EventType::KeyboardRepeat {
                         self.handle_repeat_event();
                     }
                 }
