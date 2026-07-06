@@ -132,7 +132,8 @@ impl NLockState {
                 session_lock.destroy();
             }
 
-            self.surfaces.iter_mut().for_each(|s| s.destroy());
+            // free any held surfaces
+            self.surfaces = Vec::new();
 
             self.display.sync(qh, ());
             self.session_lock = None;

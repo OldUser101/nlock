@@ -14,6 +14,7 @@ use nix::{
     sys::mman::{MapFlags, ProtFlags, mmap, munmap},
     unistd::ftruncate,
 };
+use tracing::warn;
 use wayland_client::{
     Dispatch, QueueHandle,
     protocol::{wl_buffer, wl_shm, wl_surface},
@@ -72,6 +73,14 @@ impl NLockBuffer {
         format: wl_shm::Format,
         qh: &QueueHandle<NLockState>,
     ) -> Option<Self> {
+        if width <= 0 || height <= 0 {
+            warn!(
+                "cannot create a buffer with dimensions: {}x{}",
+                width, height
+            );
+            return None;
+        }
+
         let stride = width * 4;
         let size = stride * height;
 
@@ -81,7 +90,7 @@ impl NLockBuffer {
         let data = unsafe {
             mmap(
                 None,
-                std::num::NonZeroUsize::new_unchecked(size as usize),
+                std::num::NonZeroUsize::new(size as usize)?,
                 ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
                 MapFlags::MAP_SHARED,
                 &fd,
@@ -105,7 +114,7 @@ impl NLockBuffer {
                 cairo::Format::ARgb32,
                 width,
                 height,
-                width * 4,
+                stride,
             )
         }
         .ok()?;
@@ -128,7 +137,7 @@ impl NLockBuffer {
         if self.state.in_use.swap(true, Ordering::AcqRel) {
             None
         } else {
-            // Buffer is now "in_use", explicit manage state
+            // Buffer is now "in_use", explicitly manage state
             Some(NLockBufferGuard {
                 wl_buffer: &self.buffer,
                 state: &self.state,
@@ -136,8 +145,10 @@ impl NLockBuffer {
             })
         }
     }
+}
 
-    pub fn destroy(&mut self) {
+impl Drop for NLockBuffer {
+    fn drop(&mut self) {
         self.buffer.destroy();
         let _ = unsafe { munmap(self.data, self.size) };
     }
