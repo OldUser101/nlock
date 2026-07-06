@@ -438,13 +438,17 @@ impl NLockSurface {
 
         Ok(())
     }
+}
 
-    pub fn destroy(&mut self) {
+impl Drop for NLockSurface {
+    fn drop(&mut self) {
         if let Some(lock_surface) = &self.lock_surface {
             lock_surface.destroy();
         }
 
-        self.buffers.iter_mut().for_each(|buf| buf.destroy());
+        // free any held buffers
+        self.buffers = Vec::new();
+
         self.output.release();
     }
 }
