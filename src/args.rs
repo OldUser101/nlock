@@ -24,11 +24,14 @@ pub struct NLockArgs {
     pub subcommand: Option<NLockSubcommands>,
 
     /// Log verbosity
-    #[arg(short, long, default_value = "info")]
-    pub log_level: LogLevel,
+    #[arg(short, long)]
+    pub log_level: Option<LogLevel>,
     /// Configuration file path
     #[arg(short, long)]
     pub config_file: Option<String>,
+    /// Enable debug mode
+    #[arg(short, long, action)]
+    pub debug: bool,
 
     /// Sets the background color
     #[arg(long)]

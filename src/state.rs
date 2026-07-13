@@ -30,7 +30,9 @@ use {crate::cairo_ext::ImageSurfaceExt, gdk_pixbuf::Pixbuf};
 use crate::{
     auth::AuthChannel,
     cairo_ext::SubpixelOrderExt,
+    comm::PipeCommChannel,
     event_loop::{EventSource, NLockEventLoop},
+    signal::install_debug_handler,
 };
 use crate::{
     auth::{AtomicAuthState, AuthState},
@@ -41,6 +43,13 @@ use crate::{
     seat::{NLockSeat, NLockXkb},
     surface::NLockSurface,
 };
+
+pub struct NLockStateArgs {
+    pub config: NLockConfig,
+    pub display: wl_display::WlDisplay,
+    pub auth_comm: Arc<AuthChannel>,
+    pub debug: bool,
+}
 
 pub struct NLockState {
     pub config: NLockConfig,
@@ -64,21 +73,24 @@ pub struct NLockState {
     pub auth_state: Arc<AtomicAuthState>,
     pub background_image: Option<cairo::ImageSurface>,
     pub event_loop: NLockEventLoop,
+    pub debug_comm: Option<Arc<PipeCommChannel<()>>>,
 }
 
 impl NLockState {
-    pub fn new(
-        config: NLockConfig,
-        display: wl_display::WlDisplay,
-        auth_comm: Arc<AuthChannel>,
-    ) -> Result<Self> {
+    pub fn new(args: NLockStateArgs) -> Result<Self> {
+        let debug_comm = if args.debug {
+            Some(Arc::new(PipeCommChannel::new()?))
+        } else {
+            None
+        };
+
         let mut s = Self {
-            config,
+            config: args.config,
             running: Arc::new(AtomicBool::new(true)),
             locked: false,
             unlocked: false,
             state_changed: Arc::new(AtomicBool::new(false)),
-            display,
+            display: args.display,
             registry: None,
             compositor: None,
             subcompositor: None,
@@ -90,10 +102,11 @@ impl NLockState {
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
-            auth_comm,
+            auth_comm: args.auth_comm,
             auth_state: Arc::new(AtomicAuthState::new(AuthState::Idle)),
             background_image: None,
             event_loop: NLockEventLoop::default(),
+            debug_comm,
         };
 
         if let Err(e) = s.try_load_background_image() {
@@ -108,6 +121,18 @@ impl NLockState {
             EventSource::Fd(s.auth_comm.response.rx().as_raw_fd()),
             EventType::AuthStateChanged.into(),
         )?;
+
+        if args.debug
+            && let Some(debug_comm) = &s.debug_comm
+        {
+            s.event_loop.add(
+                EventSource::Fd(debug_comm.rx().as_raw_fd()),
+                EventType::Debug.into(),
+            )?;
+
+            // install a handler on SIGUSR1
+            install_debug_handler(debug_comm.clone())?;
+        }
 
         Ok(s)
     }

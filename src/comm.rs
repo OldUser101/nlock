@@ -121,6 +121,12 @@ impl AsBytes for AuthState {
     }
 }
 
+impl AsBytes for () {
+    fn as_bytes(&self) -> &[u8] {
+        &[0u8]
+    }
+}
+
 pub trait FromBytes {
     /// Convert from a bytes-like representation of the object
     fn from_bytes(bytes: &[u8]) -> Option<Self>
@@ -167,5 +173,14 @@ impl FromBytes for AuthState {
             2u8 => Some(Self::Fail),
             _ => None,
         }
+    }
+}
+
+impl FromBytes for () {
+    fn from_bytes(_: &[u8]) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        Some(())
     }
 }

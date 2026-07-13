@@ -9,7 +9,7 @@ use std::{
 use anyhow::{Result, anyhow};
 use nix::errno::Errno;
 use num_enum::{IntoPrimitive, TryFromPrimitive};
-use tracing::warn;
+use tracing::{debug, warn};
 use wayland_client::{EventQueue, QueueHandle, backend::ReadEventsGuard};
 
 use crate::{
@@ -24,6 +24,7 @@ pub enum EventType {
     Wayland = 0,
     KeyboardRepeat = 1,
     AuthStateChanged = 2,
+    Debug = 3,
 }
 
 impl NLockState {
@@ -76,6 +77,19 @@ impl NLockState {
                             warn!("Failed to receive auth response: {e}");
                         }
                     },
+                    EventType::Debug => {
+                        if let Some(debug_comm) = &mut self.debug_comm {
+                            let _ = debug_comm.read();
+
+                            debug!("Received a debug event, exiting...");
+
+                            // fake a "success" and exit
+                            self.running.store(false, Ordering::Relaxed);
+                            self.state_changed.store(true, Ordering::Relaxed);
+                        } else {
+                            warn!("Received debug event, but not in debug mode, ignoring");
+                        }
+                    }
                     _ => {}
                 },
                 Event::Timeout { tag } => {
