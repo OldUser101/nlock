@@ -2,6 +2,7 @@
 // Copyright (C) 2026, Nathan Gill
 
 use std::{
+    collections::HashMap,
     fs::File,
     io::Seek,
     os::fd::AsRawFd,
@@ -10,7 +11,7 @@ use std::{
 
 use anyhow::{Result, anyhow, bail};
 use cairo::ImageSurface;
-use tracing::{debug, warn};
+use tracing::{debug, trace, warn};
 use wayland_client::protocol::{wl_region, wl_subcompositor, wl_subsurface};
 use wayland_client::{
     Connection, Dispatch, QueueHandle, delegate_noop,
@@ -65,7 +66,7 @@ pub struct NLockState {
     pub r_seat: Option<wl_seat::WlSeat>,
     pub session_lock_manager: Option<ext_session_lock_manager_v1::ExtSessionLockManagerV1>,
     pub session_lock: Option<ext_session_lock_v1::ExtSessionLockV1>,
-    pub surfaces: Vec<NLockSurface>,
+    pub surfaces: HashMap<u32, NLockSurface>,
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
     pub password: Zeroizing<String>,
@@ -74,6 +75,7 @@ pub struct NLockState {
     pub background_image: Option<cairo::ImageSurface>,
     pub event_loop: NLockEventLoop,
     pub debug_comm: Option<Arc<PipeCommChannel<()>>>,
+    pub interrupt: PipeCommChannel<()>,
 }
 
 impl NLockState {
@@ -83,6 +85,8 @@ impl NLockState {
         } else {
             None
         };
+
+        let interrupt = PipeCommChannel::new()?;
 
         let mut s = Self {
             config: args.config,
@@ -98,7 +102,7 @@ impl NLockState {
             r_seat: None,
             session_lock_manager: None,
             session_lock: None,
-            surfaces: Vec::new(),
+            surfaces: HashMap::new(),
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
             password: Zeroizing::new("".to_string()),
@@ -107,6 +111,7 @@ impl NLockState {
             background_image: None,
             event_loop: NLockEventLoop::default(),
             debug_comm,
+            interrupt,
         };
 
         if let Err(e) = s.try_load_background_image() {
@@ -120,6 +125,11 @@ impl NLockState {
         s.event_loop.add(
             EventSource::Fd(s.auth_comm.response.rx().as_raw_fd()),
             EventType::AuthStateChanged.into(),
+        )?;
+
+        s.event_loop.add(
+            EventSource::Fd(s.interrupt.rx().as_raw_fd()),
+            EventType::Interrupt.into(),
         )?;
 
         if args.debug
@@ -149,7 +159,7 @@ impl NLockState {
         }
     }
 
-    pub fn unlock(&mut self, qh: &QueueHandle<Self>) {
+    pub fn unlock(&mut self) {
         if let Some(session_lock) = &self.session_lock {
             if self.locked {
                 session_lock.unlock_and_destroy();
@@ -158,9 +168,8 @@ impl NLockState {
             }
 
             // free any held surfaces
-            self.surfaces = Vec::new();
+            self.surfaces.clear();
 
-            self.display.sync(qh, ());
             self.session_lock = None;
             self.locked = false;
             self.unlocked = true;
@@ -233,13 +242,12 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
         _: &Connection,
         qh: &QueueHandle<NLockState>,
     ) {
-        if let wl_registry::Event::Global {
-            name,
-            interface,
-            version,
-        } = event
-        {
-            match &interface[..] {
+        match event {
+            wl_registry::Event::Global {
+                name,
+                interface,
+                version,
+            } => match &interface[..] {
                 "wl_compositor" => {
                     let compositor =
                         registry.bind::<wl_compositor::WlCompositor, _, _>(name, version, qh, ());
@@ -263,12 +271,15 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                     state.r_seat = Some(seat);
                 }
                 "wl_output" => {
-                    let index = state.surfaces.len();
-                    let output =
-                        registry.bind::<wl_output::WlOutput, _, _>(name, version, qh, index);
+                    trace!("Output ( name: {:?}, ... )", name);
 
-                    let surface = NLockSurface::new(output, index);
-                    state.surfaces.push(surface);
+                    let output =
+                        registry.bind::<wl_output::WlOutput, _, _>(name, version, qh, name);
+
+                    state
+                        .surfaces
+                        .entry(name)
+                        .or_insert_with(|| NLockSurface::new(output, name));
                 }
                 "ext_session_lock_manager_v1" => {
                     let session_lock_manager = registry
@@ -281,7 +292,14 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                     state.session_lock_manager = Some(session_lock_manager);
                 }
                 _ => {}
+            },
+            wl_registry::Event::GlobalRemove { name } => {
+                trace!("GlobalRemove ( name: {:?}, ... )", name);
+
+                // old surfaces dropped here
+                let _ = state.surfaces.remove(&name);
             }
+            _ => {}
         }
     }
 }
@@ -292,9 +310,28 @@ delegate_noop!(NLockState: ignore wl_shm::WlShm);
 delegate_noop!(NLockState: ignore wl_surface::WlSurface);
 delegate_noop!(NLockState: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
-delegate_noop!(NLockState: ignore wl_callback::WlCallback);
 delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
 delegate_noop!(NLockState: ignore wl_region::WlRegion);
+
+impl Dispatch<wl_callback::WlCallback, u32> for NLockState {
+    fn event(
+        state: &mut Self,
+        _: &wl_callback::WlCallback,
+        event: <wl_callback::WlCallback as wayland_client::Proxy>::Event,
+        data: &u32,
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_callback::Event::Done { callback_data: _ } = event
+            && let Some(surface) = state.surfaces.get_mut(data)
+        {
+            surface.tracking.ready = true;
+            if let Err(e) = state.interrupt.write(()) {
+                warn!("Failed to write interrupt in frame callback: {:?}", e);
+            }
+        }
+    }
+}
 
 impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
     fn event(
@@ -303,7 +340,7 @@ impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
         event: <ext_session_lock_v1::ExtSessionLockV1 as wayland_client::Proxy>::Event,
         _: &(),
         _: &Connection,
-        qh: &QueueHandle<Self>,
+        _: &QueueHandle<Self>,
     ) {
         match event {
             ext_session_lock_v1::Event::Locked => {
@@ -312,22 +349,27 @@ impl Dispatch<ext_session_lock_v1::ExtSessionLockV1, ()> for NLockState {
                 debug!("Session is locked");
             }
             ext_session_lock_v1::Event::Finished => {
-                state.unlock(qh);
+                state.unlock();
             }
             _ => {}
         }
     }
 }
 
-impl Dispatch<wl_output::WlOutput, usize> for NLockState {
+impl Dispatch<wl_output::WlOutput, u32> for NLockState {
     fn event(
         state: &mut Self,
         _: &wl_output::WlOutput,
         event: <wl_output::WlOutput as wayland_client::Proxy>::Event,
-        data: &usize,
+        data: &u32,
         _: &Connection,
         qh: &QueueHandle<Self>,
     ) {
+        let Some(surface) = state.surfaces.get_mut(data) else {
+            warn!("could not find surface for {}", data);
+            return;
+        };
+
         match event {
             wl_output::Event::Geometry {
                 x: _,
@@ -339,29 +381,23 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 model: _,
                 transform: _,
             } => {
-                state.surfaces[*data]
-                    .set_subpixel_order(cairo::SubpixelOrder::from_wl_subpixel(subpixel));
+                surface.set_subpixel_order(cairo::SubpixelOrder::from_wl_subpixel(subpixel));
 
-                if let Err(e) =
-                    state.surfaces[*data].set_physical_dimensions(physical_width, physical_height)
-                {
+                if let Err(e) = surface.set_physical_dimensions(physical_width, physical_height) {
                     warn!("Failed to set output physical dimensions: {e}");
                 }
             }
             wl_output::Event::Name { name } => {
                 debug!("Found output '{name}'");
-                state.surfaces[*data].output_name = Some(name);
+                surface.output_name = Some(name);
             }
             wl_output::Event::Scale { factor } => {
-                if let Err(e) = state.surfaces[*data].set_scale(factor) {
+                if let Err(e) = surface.set_scale(factor) {
                     warn!("Failed to set output scale: {e}");
                 } else {
                     debug!(
                         "Set output scale for '{}' to {factor}",
-                        state.surfaces[*data]
-                            .output_name
-                            .as_ref()
-                            .unwrap_or(&"".to_string())
+                        surface.output_name.as_ref().unwrap_or(&"".to_string())
                     );
                 }
             }
@@ -369,12 +405,7 @@ impl Dispatch<wl_output::WlOutput, usize> for NLockState {
                 if let (Some(compositor), Some(subcompositor), Some(session_lock)) =
                     (&state.compositor, &state.subcompositor, &state.session_lock)
                 {
-                    state.surfaces[*data].create_surface(
-                        compositor,
-                        subcompositor,
-                        session_lock,
-                        qh,
-                    );
+                    surface.create_surface(compositor, subcompositor, session_lock, qh);
                 }
             }
             _ => {}

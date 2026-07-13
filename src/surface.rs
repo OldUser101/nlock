@@ -15,18 +15,33 @@ use wayland_protocols::ext::session_lock::v1::client::{
 
 use crate::{
     auth::AuthState,
-    buffer::NLockBuffer,
+    buffer::{NLockBuffer, NLockCommitArgs},
     config::NLockConfig,
     render::{DEFAULT_DPI, NLockRenderBackgroundArgs, NLockRenderOverlayArgs, NLockRenderer},
     state::NLockState,
 };
 
+pub struct NLockSurfaceTracking {
+    pub dirty: bool,
+    pub ready: bool,
+}
+
+impl Default for NLockSurfaceTracking {
+    fn default() -> Self {
+        Self {
+            dirty: false,
+            ready: true,
+        }
+    }
+}
+
 pub struct NLockSurface {
+    pub tracking: NLockSurfaceTracking,
     pub created: bool,
     // Background rendering is expensive, only do it once.
     pub bg_rendered: bool,
-    pub index: usize,
     pub output_name: Option<String>,
+    pub output_id: u32,
 
     output_scale: i32,
     width: Option<u32>,
@@ -50,12 +65,13 @@ pub struct NLockSurface {
 }
 
 impl NLockSurface {
-    pub fn new(output: wl_output::WlOutput, index: usize) -> Self {
+    pub fn new(output: wl_output::WlOutput, output_id: u32) -> Self {
         Self {
+            tracking: NLockSurfaceTracking::default(),
             created: false,
             bg_rendered: false,
-            index,
             output_name: None,
+            output_id,
             output_scale: 1,
             width: None,
             height: None,
@@ -210,6 +226,22 @@ impl NLockSurface {
     ) -> Option<usize> {
         let (width, height) = self.get_dimensions::<u32>().ok()?;
 
+        // expensive, don't run this in rel
+        #[cfg(debug_assertions)]
+        {
+            use std::sync::Arc;
+
+            for (i, buf) in self.buffers.iter().enumerate() {
+                trace!(
+                    "surface {} buffer {} {:p} in_use={}",
+                    self.output_id,
+                    i,
+                    Arc::as_ptr(&buf.state),
+                    buf.state.in_use.load(Ordering::Acquire),
+                );
+            }
+        }
+
         // The surface size changed, new buffers needed
         if let Some(last_width) = self.last_width
             && let Some(last_height) = self.last_height
@@ -279,7 +311,7 @@ impl NLockSurface {
                 && self.subsurface.is_some()
             {
                 let lock_surface =
-                    session_lock.get_lock_surface(surface, &self.output, qh, self.index);
+                    session_lock.get_lock_surface(surface, &self.output, qh, self.output_id);
                 self.lock_surface = Some(lock_surface);
             } else {
                 warn!("Failed to create background, overlay, or sub surface");
@@ -367,10 +399,17 @@ impl NLockSurface {
         )?;
         context.restore()?;
 
+        let commit_args = NLockCommitArgs {
+            surface,
+            scale: self.output_scale,
+            output: self.output_id,
+            tracking: &mut self.tracking,
+        };
+
         let mut buf_guard = buffer
             .lock_buffer()
             .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
-        buf_guard.commit_to(surface, self.output_scale);
+        buf_guard.commit_to(commit_args, qh);
 
         // Avoid rendering the background again
         self.bg_rendered = true;
@@ -431,10 +470,17 @@ impl NLockSurface {
         // Ensure subsurface position is always set to 0,0
         subsurface.set_position(0, 0);
 
+        let commit_args = NLockCommitArgs {
+            surface,
+            scale: self.output_scale,
+            output: self.output_id,
+            tracking: &mut self.tracking,
+        };
+
         let mut buf_guard = buffer
             .lock_buffer()
             .ok_or(anyhow!("Failed to lock buffer {}", idx))?;
-        buf_guard.commit_to(surface, self.output_scale);
+        buf_guard.commit_to(commit_args, qh);
 
         Ok(())
     }
@@ -453,12 +499,12 @@ impl Drop for NLockSurface {
     }
 }
 
-impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for NLockState {
+impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, u32> for NLockState {
     fn event(
         state: &mut Self,
         lock_surface: &ext_session_lock_surface_v1::ExtSessionLockSurfaceV1,
         event: <ext_session_lock_surface_v1::ExtSessionLockSurfaceV1 as wayland_client::Proxy>::Event,
-        data: &usize,
+        data: &u32,
         _: &wayland_client::Connection,
         qh: &QueueHandle<Self>,
     ) {
@@ -469,12 +515,17 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, usize> for N
         } = event
             && let Some(shm) = &state.shm
         {
-            let surface = &mut state.surfaces[*data];
+            let Some(surface) = state.surfaces.get_mut(data) else {
+                warn!("could not find surface {}", *data);
+                return;
+            };
 
             if let Err(e) = surface.set_raw_dimensions(width, height) {
                 warn!("Failed to set surface dimensions: {e}");
                 return;
             }
+
+            trace!("configure {}", serial);
 
             lock_surface.ack_configure(serial);
 

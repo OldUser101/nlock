@@ -3,21 +3,11 @@
 
 use std::{
     io::{self, Read},
-    os::fd::OwnedFd,
     str::FromStr,
 };
 
 use clap::ValueEnum;
-use nix::{
-    fcntl::OFlag,
-    sys::{
-        mman::{shm_open, shm_unlink},
-        stat::Mode,
-    },
-    unistd::getpid,
-};
 use serde::{Deserialize, de};
-use tracing::debug;
 
 #[derive(Debug, Deserialize, Copy, Clone, PartialEq, ValueEnum)]
 #[serde(rename_all = "lowercase")]
@@ -126,37 +116,6 @@ impl From<LogLevel> for tracing::level_filters::LevelFilter {
             LogLevel::Error => Self::ERROR,
         }
     }
-}
-
-pub fn open_shm() -> Option<OwnedFd> {
-    let mut retries = 100;
-
-    loop {
-        let time = chrono::Local::now();
-        let name = format!(
-            "/nlock-{}-{}-{}",
-            getpid(),
-            time.timestamp_micros(),
-            time.timestamp_subsec_nanos()
-        );
-        debug!("Trying shm file name '{}'", name);
-
-        if let Ok(fd) = shm_open(
-            name.as_str(),
-            OFlag::O_RDWR | OFlag::O_CREAT | OFlag::O_EXCL,
-            Mode::S_IRUSR | Mode::S_IWUSR,
-        ) {
-            let _ = shm_unlink(name.as_str());
-            return Some(fd);
-        }
-
-        retries -= 1;
-        if retries <= 0 {
-            break;
-        }
-    }
-
-    None
 }
 
 const PNG_SIG: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];

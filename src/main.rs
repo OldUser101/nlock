@@ -13,6 +13,7 @@ pub mod event_loop;
 pub mod font;
 pub mod render;
 pub mod seat;
+pub mod shm;
 pub mod signal;
 pub mod state;
 pub mod surface;
@@ -99,7 +100,7 @@ fn start(config: NLockConfig, debug: bool) -> Result<()> {
         }
     }
 
-    state.unlock(&qh);
+    state.unlock();
     event_queue.roundtrip(&mut state)?;
 
     if let Err(e) = auth_comm.stop.write(true) {

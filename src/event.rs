@@ -25,6 +25,7 @@ pub enum EventType {
     KeyboardRepeat = 1,
     AuthStateChanged = 2,
     Debug = 3,
+    Interrupt = 4,
 }
 
 impl NLockState {
@@ -90,6 +91,10 @@ impl NLockState {
                             warn!("Received debug event, but not in debug mode, ignoring");
                         }
                     }
+                    EventType::Interrupt => {
+                        // interrupt the event poll, something happened
+                        self.interrupt.read()?;
+                    }
                     _ => {}
                 },
                 Event::Timeout { tag } => {
@@ -111,24 +116,31 @@ impl NLockState {
     }
 
     fn re_render(&mut self, qh: &QueueHandle<NLockState>) {
-        // Re-render only if state was updated
-        if self.state_changed.load(Ordering::Relaxed)
-            && let Some(shm) = &self.shm
-        {
-            let auth_state = self.auth_state.clone().load(Ordering::Relaxed);
-
-            for i in 0..self.surfaces.len() {
-                self.surfaces[i].render(
-                    &self.config,
-                    auth_state,
-                    self.password.chars().count(),
-                    self.background_image.as_ref(),
-                    shm,
-                    qh,
-                );
+        if self.state_changed.load(Ordering::Relaxed) {
+            // mark as dirty when state changes
+            for (_, surface) in self.surfaces.iter_mut() {
+                surface.tracking.dirty = true;
             }
 
             self.state_changed.store(false, Ordering::Relaxed);
+        }
+
+        if let Some(shm) = &self.shm {
+            let auth_state = self.auth_state.clone().load(Ordering::Relaxed);
+
+            for (_, surface) in self.surfaces.iter_mut() {
+                // only render when surface advertised as available
+                if surface.tracking.dirty && surface.tracking.ready {
+                    surface.render(
+                        &self.config,
+                        auth_state,
+                        self.password.chars().count(),
+                        self.background_image.as_ref(),
+                        shm,
+                        qh,
+                    );
+                }
+            }
         }
     }
 
