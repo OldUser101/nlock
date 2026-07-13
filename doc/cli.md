@@ -11,6 +11,11 @@ The following options are only available as command line arguments:
     here is the **only** one loaded, any other configuration files on disk will
     be ignored. Options specified in here can still be overriden by command
     line options.
+- `-d`/`--debug`, enable debug mode. Debug mode enables the `debug` log level by
+    default. Sending nlock a SIGUSR1 while running in debug mode will result
+    in immediate exit, whether authentication was successful or not. This flag
+    is specifically designed for developing or testing nlock, where its
+    behaviours are desirable and save considerable time.
 
 The following correspond directly to configuration options. See
 [configuration file documentation](config.md) for more information about these.

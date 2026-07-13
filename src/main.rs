@@ -13,6 +13,7 @@ pub mod event_loop;
 pub mod font;
 pub mod render;
 pub mod seat;
+pub mod signal;
 pub mod state;
 pub mod surface;
 pub mod util;
@@ -25,22 +26,27 @@ use anyhow::{Result, bail};
 #[cfg(target_os = "linux")]
 use nix::sys::prctl;
 
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 use wayland_client::Connection;
 
 use crate::{
     args::run_cli,
     auth::{AuthChannel, AuthConfig, setup_auth},
     config::NLockConfig,
-    state::NLockState,
+    state::{NLockState, NLockStateArgs},
+    util::LogLevel,
 };
 
-fn start(config: NLockConfig) -> Result<()> {
+fn start(config: NLockConfig, debug: bool) -> Result<()> {
     // Prevent ptrace from attaching to nlock
     // Only do this in release config
     #[cfg(not(debug_assertions))]
     #[cfg(target_os = "linux")]
     prctl::set_dumpable(false)?;
+
+    if debug {
+        info!("Running in DEBUG mode");
+    }
 
     let conn = Connection::connect_to_env()?;
     let display = conn.display();
@@ -48,7 +54,13 @@ fn start(config: NLockConfig) -> Result<()> {
     let auth_comm = Arc::new(AuthChannel::new()?);
     let auth_config: AuthConfig = (&config).into();
 
-    let mut state = NLockState::new(config, display, auth_comm.clone())?;
+    let state_args = NLockStateArgs {
+        config,
+        display,
+        auth_comm: auth_comm.clone(),
+        debug,
+    };
+    let mut state = NLockState::new(state_args)?;
 
     let mut event_queue = conn.new_event_queue();
     let qh = event_queue.handle();
@@ -104,7 +116,11 @@ fn main() {
 
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(args.log_level)
+        .with_max_level(args.log_level.unwrap_or(if args.debug {
+            LogLevel::Debug
+        } else {
+            LogLevel::Info
+        }))
         .init();
 
     let now = chrono::Local::now();
@@ -112,7 +128,7 @@ fn main() {
 
     match NLockConfig::load(&args) {
         Ok(cfg) => {
-            if let Err(e) = start(cfg) {
+            if let Err(e) = start(cfg, args.debug) {
                 error!("{:?}", e);
             }
         }
