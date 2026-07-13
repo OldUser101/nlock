@@ -36,7 +36,7 @@ where
         let size_buf = msg_buf.len().to_ne_bytes();
 
         write(&self.tx, &size_buf)?;
-        write(&self.tx, msg_buf)?;
+        write(&self.tx, &msg_buf)?;
 
         Ok(())
     }
@@ -93,37 +93,37 @@ where
 
 pub trait AsBytes {
     /// Convert to a bytes-like representation of the object
-    fn as_bytes(&self) -> &[u8];
+    fn as_bytes(&self) -> Vec<u8>;
 }
 
 impl AsBytes for String {
-    fn as_bytes(&self) -> &[u8] {
-        self.as_bytes()
+    fn as_bytes(&self) -> Vec<u8> {
+        self.as_bytes().to_vec()
     }
 }
 
 impl AsBytes for bool {
-    fn as_bytes(&self) -> &[u8] {
+    fn as_bytes(&self) -> Vec<u8> {
         match self {
-            false => &[0u8],
-            true => &[1u8],
+            false => vec![0u8],
+            true => vec![1u8],
         }
     }
 }
 
 impl AsBytes for AuthState {
-    fn as_bytes(&self) -> &[u8] {
+    fn as_bytes(&self) -> Vec<u8> {
         match self {
-            Self::Idle => &[0u8],
-            Self::Success => &[1u8],
-            Self::Fail => &[2u8],
+            Self::Idle => vec![0u8],
+            Self::Success => vec![1u8],
+            Self::Fail => vec![2u8],
         }
     }
 }
 
 impl AsBytes for () {
-    fn as_bytes(&self) -> &[u8] {
-        &[0u8]
+    fn as_bytes(&self) -> Vec<u8> {
+        vec![0u8]
     }
 }
 

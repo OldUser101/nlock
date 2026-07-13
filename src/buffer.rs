@@ -1,34 +1,27 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026, Nathan Gill
 
-use std::{
-    os::{fd::AsFd, raw::c_void},
-    ptr::NonNull,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
 };
 
-use nix::{
-    sys::mman::{MapFlags, ProtFlags, mmap, munmap},
-    unistd::ftruncate,
-};
-use tracing::warn;
+use tracing::{trace, warn};
 use wayland_client::{
     Dispatch, QueueHandle,
     protocol::{wl_buffer, wl_shm, wl_surface},
 };
 
-use crate::{state::NLockState, util::open_shm};
+use crate::{shm::NLockShm, state::NLockState, surface::NLockSurfaceTracking};
 
 pub struct NLockBuffer {
     buffer: wl_buffer::WlBuffer,
-    data: NonNull<c_void>,
+
+    // required to keep shm mapping alive
+    _shm: NLockShm,
 
     pub width: i32,
     pub height: i32,
-    pub size: usize,
     pub state: Arc<NLockBufferState>,
     pub surface: cairo::ImageSurface,
     pub context: cairo::Context,
@@ -36,6 +29,13 @@ pub struct NLockBuffer {
 
 pub struct NLockBufferState {
     pub in_use: AtomicBool,
+}
+
+pub struct NLockCommitArgs<'a> {
+    pub surface: &'a wl_surface::WlSurface,
+    pub scale: i32,
+    pub output: u32,
+    pub tracking: &'a mut NLockSurfaceTracking,
 }
 
 pub struct NLockBufferGuard<'a> {
@@ -47,13 +47,16 @@ pub struct NLockBufferGuard<'a> {
 impl<'a> NLockBufferGuard<'a> {
     /// Attaches, damages, and commits the current buffer onto the specified
     /// surface.
-    pub fn commit_to(&mut self, surface: &wl_surface::WlSurface, scale: i32) {
-        surface.attach(Some(self.wl_buffer), 0, 0);
-        surface.set_buffer_scale(scale);
-        surface.damage(0, 0, i32::MAX, i32::MAX);
-        surface.commit();
+    pub fn commit_to(&mut self, args: NLockCommitArgs, qh: &QueueHandle<NLockState>) {
+        args.surface.set_buffer_scale(args.scale);
+        args.surface.attach(Some(self.wl_buffer), 0, 0);
+        args.surface.damage(0, 0, i32::MAX, i32::MAX);
+        args.surface.frame(qh, args.output);
+        args.surface.commit();
 
         self.committed = true;
+        args.tracking.ready = false;
+        args.tracking.dirty = false;
     }
 }
 
@@ -67,7 +70,7 @@ impl<'a> Drop for NLockBufferGuard<'a> {
 
 impl NLockBuffer {
     pub fn new(
-        shm: &wl_shm::WlShm,
+        wl_shm: &wl_shm::WlShm,
         width: i32,
         height: i32,
         format: wl_shm::Format,
@@ -84,26 +87,14 @@ impl NLockBuffer {
         let stride = width * 4;
         let size = stride * height;
 
-        let fd = open_shm()?;
-        ftruncate(&fd, size as i64).ok()?;
-
-        let data = unsafe {
-            mmap(
-                None,
-                std::num::NonZeroUsize::new(size as usize)?,
-                ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,
-                MapFlags::MAP_SHARED,
-                &fd,
-                0,
-            )
-            .ok()?
-        };
+        let mut shm = NLockShm::new(size as i64)?;
+        let data = shm.map().ok()?;
 
         let state = Arc::new(NLockBufferState {
             in_use: AtomicBool::new(false),
         });
 
-        let pool = shm.create_pool(fd.as_fd(), size, qh, ());
+        let pool = wl_shm.create_pool(shm.fd(), size, qh, ());
         let buffer = pool.create_buffer(0, width, height, stride, format, qh, state.clone());
 
         pool.destroy();
@@ -123,10 +114,9 @@ impl NLockBuffer {
 
         Some(Self {
             buffer,
-            data,
+            _shm: shm,
             width,
             height,
-            size: size as usize,
             state,
             surface,
             context,
@@ -150,7 +140,6 @@ impl NLockBuffer {
 impl Drop for NLockBuffer {
     fn drop(&mut self) {
         self.buffer.destroy();
-        let _ = unsafe { munmap(self.data, self.size) };
     }
 }
 
@@ -164,6 +153,7 @@ impl Dispatch<wl_buffer::WlBuffer, Arc<NLockBufferState>> for NLockState {
         _: &QueueHandle<Self>,
     ) {
         if let wl_buffer::Event::Release = event {
+            trace!("release {:p}", Arc::as_ptr(data),);
             data.in_use.store(false, Ordering::Release);
         }
     }
