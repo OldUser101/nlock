@@ -226,6 +226,12 @@ impl NLockSurface {
     ) -> Option<usize> {
         let (width, height) = self.get_dimensions::<u32>().ok()?;
 
+        // remove buffers with incorrect dimensions
+        self.buffers.retain(|buf| {
+            buf.state.in_use.load(Ordering::Acquire)
+                || (buf.width == (width as i32) && buf.height == (height as i32))
+        });
+
         // expensive, don't run this in rel
         #[cfg(debug_assertions)]
         {
@@ -242,18 +248,10 @@ impl NLockSurface {
             }
         }
 
-        // The surface size changed, new buffers needed
-        if let Some(last_width) = self.last_width
-            && let Some(last_height) = self.last_height
-            && (last_width != width || last_height != height)
-        {
-            return self.new_buffer(width, height, shm, qh);
-        }
-
-        let index = self
-            .buffers
-            .iter()
-            .position(|buf| !buf.state.in_use.load(Ordering::Acquire));
+        let index = self.buffers.iter().position(|buf| {
+            !buf.state.in_use.load(Ordering::Acquire)
+                && (buf.width == (width as i32) && buf.height == (height as i32))
+        });
 
         let idx = match index {
             Some(i) => i,
@@ -357,10 +355,14 @@ impl NLockSurface {
         shm: &wl_shm::WlShm,
         qh: &QueueHandle<NLockState>,
     ) -> Result<()> {
+        let (width, height) = self.get_raw_dimensions()?;
+
         // Background rendered, but we need to commit again
         // to allow overlay update (synchronised surfaces)
         if self.bg_rendered
             && let Some(surface) = &self.bg_surface
+            && width == self.last_width.unwrap_or(width)
+            && height == self.last_height.unwrap_or(height)
         {
             surface.commit();
             return Ok(());
@@ -525,7 +527,7 @@ impl Dispatch<ext_session_lock_surface_v1::ExtSessionLockSurfaceV1, u32> for NLo
                 return;
             }
 
-            trace!("configure {}", serial);
+            trace!("configure {}, width={}, height={}", serial, width, height);
 
             lock_surface.ack_configure(serial);
 
