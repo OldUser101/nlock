@@ -10,8 +10,9 @@ any compositor that correctly implements it.
 
 nlock source code can be found in a couple of places:
 
-- [GitHub](https://github.com/OldUser101/nlock), primary repository for development
-- [Tangled](https://tangled.org/ngill.net/nlock), mirrored, may become primary in the future!
+- [ngill.net](https://git.ngill.net/nlock.git), canonical source
+- [GitHub](https://github.com/OldUser101/nlock), mirrored, CI
+- [Tangled](https://tangled.org/ngill.net/nlock), mirrored
 
 ## Usage
 
