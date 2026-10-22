@@ -121,11 +121,14 @@ fn main() {
 
     tracing_subscriber::fmt()
         .with_timer(tracing_subscriber::fmt::time::uptime())
-        .with_max_level(args.log_level.unwrap_or(if args.debug {
-            LogLevel::Debug
-        } else {
-            LogLevel::Info
-        }))
+        .with_max_level(
+            args.log_level
+                .unwrap_or(if args.debug || cfg!(debug_assertions) {
+                    LogLevel::Debug
+                } else {
+                    LogLevel::Info
+                }),
+        )
         .init();
 
     let now = chrono::Local::now();
