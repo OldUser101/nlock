@@ -9,6 +9,7 @@ use wayland_client::{
     Connection, Dispatch, QueueHandle, WEnum,
     protocol::{wl_keyboard, wl_pointer, wl_seat},
 };
+use wayland_protocols::wp::cursor_shape::v1::client::wp_cursor_shape_device_v1;
 use xkbcommon::xkb;
 
 use crate::{
@@ -232,7 +233,7 @@ impl Dispatch<wl_pointer::WlPointer, ()> for NLockState {
         event: <wl_pointer::WlPointer as wayland_client::Proxy>::Event,
         _: &(),
         _: &wayland_client::Connection,
-        _: &wayland_client::QueueHandle<Self>,
+        qh: &wayland_client::QueueHandle<Self>,
     ) {
         if let wl_pointer::Event::Enter {
             serial,
@@ -240,10 +241,18 @@ impl Dispatch<wl_pointer::WlPointer, ()> for NLockState {
             surface_x: _,
             surface_y: _,
         } = event
-            && state.config.general.hide_cursor
         {
-            debug!("Received pointer enter event, cursor hidden");
-            pointer.set_cursor(serial, None, 0, 0);
+            if state.config.general.hide_cursor {
+                debug!("Received pointer enter event, cursor hidden");
+                pointer.set_cursor(serial, None, 0, 0);
+                return;
+            }
+
+            if let Some(cursor_shape_manager) = &state.cursor_shape_manager {
+                debug!("Received pointer enter event, updated cursor shape");
+                let cursor_shape_device = cursor_shape_manager.get_pointer(pointer, qh, ());
+                cursor_shape_device.set_shape(serial, wp_cursor_shape_device_v1::Shape::Default);
+            }
         }
     }
 }

@@ -89,6 +89,10 @@ fn start(config: NLockConfig, debug: bool) -> Result<()> {
         bail!("Missing ExtSessionLockManagerV1");
     }
 
+    if state.cursor_shape_manager.is_none() {
+        debug!("Missing WpCursorShapeManager, cursor support will be unavailable");
+    }
+
     // spawn the auth thread
     let handle = setup_auth(auth_config, auth_comm.clone())?;
 

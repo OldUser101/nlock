@@ -20,8 +20,9 @@ use wayland_client::{
         wl_shm_pool, wl_surface,
     },
 };
-use wayland_protocols::ext::session_lock::v1::client::{
-    ext_session_lock_manager_v1, ext_session_lock_v1,
+use wayland_protocols::{
+    ext::session_lock::v1::client::{ext_session_lock_manager_v1, ext_session_lock_v1},
+    wp::cursor_shape::v1::client::{wp_cursor_shape_device_v1, wp_cursor_shape_manager_v1},
 };
 use zeroize::Zeroizing;
 
@@ -66,6 +67,7 @@ pub struct NLockState {
     pub r_seat: Option<wl_seat::WlSeat>,
     pub session_lock_manager: Option<ext_session_lock_manager_v1::ExtSessionLockManagerV1>,
     pub session_lock: Option<ext_session_lock_v1::ExtSessionLockV1>,
+    pub cursor_shape_manager: Option<wp_cursor_shape_manager_v1::WpCursorShapeManagerV1>,
     pub surfaces: HashMap<u32, NLockSurface>,
     pub seat: NLockSeat,
     pub xkb: NLockXkb,
@@ -102,6 +104,7 @@ impl NLockState {
             r_seat: None,
             session_lock_manager: None,
             session_lock: None,
+            cursor_shape_manager: None,
             surfaces: HashMap::new(),
             seat: NLockSeat::default(),
             xkb: NLockXkb::default(),
@@ -291,6 +294,16 @@ impl Dispatch<wl_registry::WlRegistry, ()> for NLockState {
                     );
                     state.session_lock_manager = Some(session_lock_manager);
                 }
+                "wp_cursor_shape_manager_v1" => {
+                    let cursor_shape_manager = registry
+                        .bind::<wp_cursor_shape_manager_v1::WpCursorShapeManagerV1, _, _>(
+                        name,
+                        version,
+                        qh,
+                        (),
+                    );
+                    state.cursor_shape_manager = Some(cursor_shape_manager);
+                }
                 _ => {}
             },
             wl_registry::Event::GlobalRemove { name } => {
@@ -312,6 +325,8 @@ delegate_noop!(NLockState: ignore wl_subsurface::WlSubsurface);
 delegate_noop!(NLockState: ignore ext_session_lock_manager_v1::ExtSessionLockManagerV1);
 delegate_noop!(NLockState: ignore wl_shm_pool::WlShmPool);
 delegate_noop!(NLockState: ignore wl_region::WlRegion);
+delegate_noop!(NLockState: ignore wp_cursor_shape_manager_v1::WpCursorShapeManagerV1);
+delegate_noop!(NLockState: ignore wp_cursor_shape_device_v1::WpCursorShapeDeviceV1);
 
 impl Dispatch<wl_callback::WlCallback, u32> for NLockState {
     fn event(
