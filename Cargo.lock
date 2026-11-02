@@ -612,7 +612,7 @@ dependencies = [
 
 [[package]]
 name = "nlock"
-version = "0.1.8-pre"
+version = "1.0.0"
 dependencies = [
  "anyhow",
  "atomic_enum",
